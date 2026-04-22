@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Планировщик задач</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <h1>📋 Планировщик задач</h1>
+            <div class="user-info">
+                <span>Сегодня: <span id="current-date"></span></span>
+            </div>
+        </header>
+
+        <main class="main">
+            <!-- Форма создания задачи -->
+            <section class="task-form-section">
+                <h2>➕ Новая задача</h2>
+                <form id="task-form" class="task-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="task-name">Название *</label>
+                            <input type="text" id="task-name" name="Name" required placeholder="Введите название задачи">
+                        </div>
+                        <div class="form-group">
+                            <label for="task-assignee">Исполнитель</label>
+                            <input type="text" id="task-assignee" name="Assignee" placeholder="Имя сотрудника">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="task-deadline">Срок</label>
+                            <input type="date" id="task-deadline" name="Deadline">
+                        </div>
+                        <div class="form-group">
+                            <label for="task-status">Статус</label>
+                            <select id="task-status" name="Status">
+                                <option value="Новая">Новая</option>
+                                <option value="В работе">В работе</option>
+                                <option value="На проверке">На проверке</option>
+                                <option value="Завершена">Завершена</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-description">Описание</label>
+                        <textarea id="task-description" name="Description" rows="3" placeholder="Подробное описание задачи..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Создать задачу</button>
+                </form>
+            </section>
+
+            <!-- Фильтры и список задач -->
+            <section class="tasks-section">
+                <div class="tasks-header">
+                    <h2>📌 Список задач</h2>
+                    <div class="filters">
+                        <select id="filter-status" class="filter-select">
+                            <option value="">Все статусы</option>
+                            <option value="Новая">Новая</option>
+                            <option value="В работе">В работе</option>
+                            <option value="На проверке">На проверке</option>
+                            <option value="Завершена">Завершена</option>
+                        </select>
+                        <button id="refresh-btn" class="btn btn-secondary">🔄 Обновить</button>
+                    </div>
+                </div>
+                <div id="tasks-container" class="tasks-container">
+                    <div class="loading">Загрузка задач...</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Модальное окно для редактирования -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Редактировать задачу</h3>
+            <form id="edit-form">
+                <input type="hidden" id="edit-row-id">
+                <div class="form-group">
+                    <label for="edit-name">Название</label>
+                    <input type="text" id="edit-name" name="Name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-description">Описание</label>
+                    <textarea id="edit-description" name="Description" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-assignee">Исполнитель</label>
+                        <input type="text" id="edit-assignee" name="Assignee">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-deadline">Срок</label>
+                        <input type="date" id="edit-deadline" name="Deadline">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-status">Статус</label>
+                    <select id="edit-status" name="Status">
+                        <option value="Новая">Новая</option>
+                        <option value="В работе">В работе</option>
+                        <option value="На проверке">На проверке</option>
+                        <option value="Завершена">Завершена</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-edit">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
