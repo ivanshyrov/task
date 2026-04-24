@@ -10,6 +10,20 @@ const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
 const VIEW_NAME = process.env.SEATABLE_VIEW_NAME || "Default";
 
 module.exports = async (req, res) => {
+  const debug = {
+    method: req.method,
+    table: TABLE_NAME,
+    view: VIEW_NAME,
+    serverEnv: process.env.SEATABLE_SERVER || null,
+    baseUuidPresent: Boolean(process.env.SEATABLE_BASE_UUID),
+    baseUrl: null,
+    rowsUrl: null,
+    rowsCreateUrl: null,
+    isV2: null,
+    accessMetaHasUuid: null,
+    accessMetaServer: null,
+    seatableError: null,
+  };
   try {
     console.log("[tasks] entry", {
       method: req.method,
@@ -23,6 +37,12 @@ module.exports = async (req, res) => {
     const rowsUrl = `${baseUrl}/rows/?table_name=${encodeURIComponent(TABLE_NAME)}&view_name=${encodeURIComponent(VIEW_NAME)}`;
     const rowsCreateUrl = `${baseUrl}/rows/`;
     const isV2 = baseUrl.includes("/api/v2/");
+    debug.baseUrl = baseUrl;
+    debug.rowsUrl = rowsUrl;
+    debug.rowsCreateUrl = rowsCreateUrl;
+    debug.isV2 = isV2;
+    debug.accessMetaHasUuid = Boolean(accessMeta && accessMeta.dtable_uuid);
+    debug.accessMetaServer = (accessMeta && accessMeta.dtable_server) || null;
     // #region agent log
     fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H5',location:'api/tasks/index.js:handler',message:'Computed rows URL',data:{method:req.method,baseUrl,rowsUrl,table:TABLE_NAME,view:VIEW_NAME},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
@@ -60,7 +80,9 @@ module.exports = async (req, res) => {
           body: JSON.stringify(body),
         });
       } catch (firstError) {
-        console.error("[tasks] create failed", { message: firstError?.message || String(firstError) });
+        const msg = firstError?.message || String(firstError);
+        debug.seatableError = msg.slice(0, 2000);
+        console.error("[tasks] create failed", { message: msg });
         throw firstError;
       }
       return res.status(201).json({ task: mapRowToTask(created) });
@@ -68,7 +90,8 @@ module.exports = async (req, res) => {
 
     return res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
-    console.error("[tasks] handler failed", { message: error?.message || String(error) });
-    return res.status(500).json({ error: error.message || "Unexpected API error" });
+    const message = error?.message || String(error);
+    console.error("[tasks] handler failed", { message });
+    return res.status(500).json({ error: message || "Unexpected API error", debug });
   }
 };
