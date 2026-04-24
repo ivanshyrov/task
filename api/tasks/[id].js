@@ -9,9 +9,23 @@ const {
 const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
 
 module.exports = async (req, res) => {
+  const debug = {
+    method: req.method,
+    id: req.query?.id,
+    numericId: null,
+    bodyHasRowId: false,
+    resolvedRowId: null,
+    seatableRowsShape: null,
+    seatableRowsTopKeys: null,
+    seatableListLen: null,
+    matchFound: false,
+    matchRowId: null,
+    error: null,
+  };
   try {
     const { id } = req.query;
     const numericId = Number(id);
+    debug.numericId = numericId;
     console.log("[taskById] entry", {
       method: req.method,
       id,
@@ -27,6 +41,7 @@ module.exports = async (req, res) => {
       // If frontend didn't send row_id, find it by our numeric "id" column.
       if (!Number.isFinite(numericId)) return null;
       const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
+      debug.seatableRowsShape = Array.isArray(rows) ? "array" : typeof rows;
       const list =
         (Array.isArray(rows) ? rows : null) ||
         rows?.rows ||
@@ -34,6 +49,8 @@ module.exports = async (req, res) => {
         rows?.data?.rows ||
         rows?.data?.results ||
         null;
+      debug.seatableRowsTopKeys = rows && typeof rows === "object" && !Array.isArray(rows) ? Object.keys(rows).slice(0, 30) : null;
+      debug.seatableListLen = Array.isArray(list) ? list.length : null;
       console.log("[taskById] resolveRowId fetched", {
         gotArray: Array.isArray(rows),
         topKeys: rows && typeof rows === "object" ? Object.keys(rows).slice(0, 15) : null,
@@ -41,6 +58,8 @@ module.exports = async (req, res) => {
       });
       if (!Array.isArray(list)) return null;
       const found = list.find((r) => Number(r?.id) === numericId);
+      debug.matchFound = Boolean(found);
+      debug.matchRowId = found?._id || null;
       console.log("[taskById] resolveRowId match", {
         found: Boolean(found),
         foundId: found?._id || null,
@@ -49,8 +68,10 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "PUT") {
+      debug.bodyHasRowId = Boolean(req.body?.row_id);
       const rowId = req.body?.row_id || (await resolveRowId());
-      if (!rowId) return res.status(400).json({ error: "row_id is required for update" });
+      debug.resolvedRowId = rowId || null;
+      if (!rowId) return res.status(400).json({ error: "row_id is required for update", debug });
 
       const row = mapTaskToRow({ ...req.body, id: Number(id) });
       const updated = await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
@@ -61,8 +82,10 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "DELETE") {
+      debug.bodyHasRowId = Boolean(req.body?.row_id);
       const rowId = req.body?.row_id || (await resolveRowId());
-      if (!rowId) return res.status(400).json({ error: "row_id is required for delete" });
+      debug.resolvedRowId = rowId || null;
+      if (!rowId) return res.status(400).json({ error: "row_id is required for delete", debug });
 
       await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
         method: "DELETE",
@@ -73,7 +96,9 @@ module.exports = async (req, res) => {
 
     return res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
-    console.error("[taskById] failed", { message: error?.message || String(error) });
-    return res.status(500).json({ error: error.message || "Unexpected API error" });
+    const message = error?.message || String(error);
+    debug.error = message.slice(0, 2000);
+    console.error("[taskById] failed", { message });
+    return res.status(500).json({ error: message || "Unexpected API error", debug });
   }
 };

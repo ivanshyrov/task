@@ -59,7 +59,14 @@ module.exports = async (req, res) => {
 
     if (req.method === "GET") {
       const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
-      const tasks = Array.isArray(rows) ? rows.map(mapRowToTask) : [];
+      const list =
+        (Array.isArray(rows) ? rows : null) ||
+        rows?.rows ||
+        rows?.results ||
+        rows?.data?.rows ||
+        rows?.data?.results ||
+        null;
+      const tasks = Array.isArray(list) ? list.map(mapRowToTask) : [];
       return res.status(200).json({ tasks });
     }
 
