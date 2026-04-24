@@ -14,18 +14,28 @@ function getServerBase() {
 
 async function getAppAccessToken() {
   assertEnv();
-  const response = await fetch(`${getServerBase()}/api/v2.1/dtable/app-access-token/`, {
+  const url = `${getServerBase()}/api/v2.1/dtable/app-access-token/`;
+  const postResponse = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ api_token: process.env.SEATABLE_API_TOKEN }),
   });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`SeaTable auth failed: ${response.status} ${body}`);
+  if (postResponse.ok) return postResponse.json();
+
+  // Some SeaTable installations expect GET + Authorization header.
+  if (postResponse.status === 405) {
+    const getResponse = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Token ${process.env.SEATABLE_API_TOKEN}` },
+    });
+    if (getResponse.ok) return getResponse.json();
+    const getBody = await getResponse.text();
+    throw new Error(`SeaTable auth failed (GET): ${getResponse.status} ${getBody}`);
   }
 
-  return response.json();
+  const postBody = await postResponse.text();
+  throw new Error(`SeaTable auth failed (POST): ${postResponse.status} ${postBody}`);
 }
 
 function getRowsBaseUrl(accessMeta) {
