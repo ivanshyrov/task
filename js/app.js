@@ -412,7 +412,10 @@
             remoteTasks.forEach((task) => {
                 const normalizedTask = { ...task };
                 normalizeTask(normalizedTask);
-                if (task.row_id) taskRowMap.set(normalizedTask.id, task.row_id);
+                if (task.row_id) {
+                    normalizedTask.row_id = task.row_id;
+                    taskRowMap.set(normalizedTask.id, task.row_id);
+                }
                 const db = databases.find(d => d.id === normalizedTask.databaseId) || databases[0];
                 normalizedTask.databaseId = db.id;
                 db.tasks.push(normalizedTask);
@@ -663,7 +666,7 @@
             const context = findTaskContext(taskId);
             if (!context || !canDeleteTask(context.task)) return;
             if (confirm('Удалить задачу?')) {
-                const rowId = taskRowMap.get(taskId);
+                const rowId = context?.task?.row_id || taskRowMap.get(taskId);
                 const snapshot = [...context.db.tasks];
                 context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
                 refreshTaskRelatedUi();
@@ -819,7 +822,7 @@
         if (prevAssignee !== task.assignee) addHistoryEntry(task, `Исполнитель: ${prevAssignee || 'Не назначен'} -> ${task.assignee || 'Не назначен'}`);
         refreshTaskRelatedUi();
         try {
-            const rowId = taskRowMap.get(task.id);
+            const rowId = task.row_id || taskRowMap.get(task.id);
             await apiRequest(`${API_BASE}/${task.id}`, {
                 method: 'PUT',
                 body: JSON.stringify({ ...task, row_id: rowId })
@@ -936,7 +939,7 @@
         refreshTaskRelatedUi();
         try {
             for (const id of removableIds) {
-                const rowId = taskRowMap.get(id);
+                const rowId = findTaskContext(id)?.task?.row_id || taskRowMap.get(id);
                 await apiRequest(`${API_BASE}/${id}`, {
                     method: 'DELETE',
                     body: JSON.stringify({ row_id: rowId })
