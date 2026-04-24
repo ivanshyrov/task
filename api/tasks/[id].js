@@ -12,6 +12,12 @@ module.exports = async (req, res) => {
   try {
     const { id } = req.query;
     const numericId = Number(id);
+    console.log("[taskById] entry", {
+      method: req.method,
+      id,
+      numericId,
+      bodyKeys: req.body ? Object.keys(req.body) : null,
+    });
     const accessMeta = await getAppAccessToken();
     const baseUrl = getRowsBaseUrl(accessMeta);
     const rowsUrl = `${baseUrl}/rows/?table_name=${encodeURIComponent(TABLE_NAME)}`;
@@ -21,9 +27,24 @@ module.exports = async (req, res) => {
       // If frontend didn't send row_id, find it by our numeric "id" column.
       if (!Number.isFinite(numericId)) return null;
       const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
-      const list = Array.isArray(rows) ? rows : rows?.rows; // handle both shapes just in case
+      const list =
+        (Array.isArray(rows) ? rows : null) ||
+        rows?.rows ||
+        rows?.results ||
+        rows?.data?.rows ||
+        rows?.data?.results ||
+        null;
+      console.log("[taskById] resolveRowId fetched", {
+        gotArray: Array.isArray(rows),
+        topKeys: rows && typeof rows === "object" ? Object.keys(rows).slice(0, 15) : null,
+        listLen: Array.isArray(list) ? list.length : null,
+      });
       if (!Array.isArray(list)) return null;
       const found = list.find((r) => Number(r?.id) === numericId);
+      console.log("[taskById] resolveRowId match", {
+        found: Boolean(found),
+        foundId: found?._id || null,
+      });
       return found?._id || null;
     }
 
@@ -52,6 +73,7 @@ module.exports = async (req, res) => {
 
     return res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
+    console.error("[taskById] failed", { message: error?.message || String(error) });
     return res.status(500).json({ error: error.message || "Unexpected API error" });
   }
 };
