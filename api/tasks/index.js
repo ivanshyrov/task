@@ -14,6 +14,10 @@ module.exports = async (req, res) => {
     const accessMeta = await getAppAccessToken();
     const baseUrl = getRowsBaseUrl(accessMeta);
     const rowsUrl = `${baseUrl}/rows/?table_name=${encodeURIComponent(TABLE_NAME)}&view_name=${encodeURIComponent(VIEW_NAME)}`;
+    const rowsCreateUrl = `${baseUrl}/rows/?table_name=${encodeURIComponent(TABLE_NAME)}`;
+    // #region agent log
+    fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H5',location:'api/tasks/index.js:handler',message:'Computed rows URL',data:{method:req.method,baseUrl,rowsUrl,table:TABLE_NAME,view:VIEW_NAME},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     if (req.method === "GET") {
       const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
@@ -24,10 +28,19 @@ module.exports = async (req, res) => {
     if (req.method === "POST") {
       const task = req.body || {};
       const row = mapTaskToRow(task);
-      const created = await seatableRequest(accessMeta.access_token, rowsUrl, {
-        method: "POST",
-        body: JSON.stringify({ row }),
-      });
+      let created;
+      try {
+        created = await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
+          method: "POST",
+          body: JSON.stringify({ row }),
+        });
+      } catch (firstError) {
+        // SeaTable Cloud can require table_name in request body on POST /rows.
+        created = await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
+          method: "POST",
+          body: JSON.stringify({ table_name: TABLE_NAME, row }),
+        });
+      }
       return res.status(201).json({ task: mapRowToTask(created) });
     }
 
