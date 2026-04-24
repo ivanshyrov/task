@@ -15,6 +15,10 @@ function getServerBase() {
 async function getAppAccessToken() {
   assertEnv();
   const url = `${getServerBase()}/api/v2.1/dtable/app-access-token/`;
+  console.log("[seatable] auth start", {
+    serverBase: getServerBase(),
+    baseUuidPresent: Boolean(process.env.SEATABLE_BASE_UUID),
+  });
   // #region agent log
   fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H1',location:'api/_seatable.js:getAppAccessToken:start',message:'Auth request start',data:{serverBase:getServerBase()},timestamp:Date.now()})}).catch(()=>{});
   // #endregion
@@ -23,6 +27,7 @@ async function getAppAccessToken() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ api_token: process.env.SEATABLE_API_TOKEN }),
   });
+  console.log("[seatable] auth response", { status: postResponse.status });
   // #region agent log
   fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H2',location:'api/_seatable.js:getAppAccessToken:post',message:'POST auth response',data:{status:postResponse.status},timestamp:Date.now()})}).catch(()=>{});
   // #endregion
@@ -50,6 +55,11 @@ async function getAppAccessToken() {
 function getRowsBaseUrl(accessMeta) {
   const dtableServer = (accessMeta.dtable_server || getServerBase()).replace(/\/+$/, "");
   const dtableUuid = accessMeta.dtable_uuid || process.env.SEATABLE_BASE_UUID;
+  console.log("[seatable] rows base inputs", {
+    dtableServer,
+    hasMetaUuid: Boolean(accessMeta && accessMeta.dtable_uuid),
+    envUuidPresent: Boolean(process.env.SEATABLE_BASE_UUID),
+  });
   // SeaTable Cloud returns dtable_server with "/api-gateway".
   // For cloud we must use v2 endpoints, for self-hosted v1 is still common.
   if (dtableServer.includes("/api-gateway")) {
