@@ -63,7 +63,10 @@ module.exports = async (req, res) => {
       if (!Number.isFinite(numericId)) return null;
       const list = await fetchAllRowsList();
       if (!Array.isArray(list)) return null;
-      const found = list.find((r) => Number(r?.id) === numericId);
+      const found = list.find((r) => {
+        const fields = r && typeof r === "object" && r.row && typeof r.row === "object" ? r.row : r;
+        return Number(fields?.id ?? fields?.ID) === numericId;
+      });
       debug.matchFound = Boolean(found);
       debug.matchRowId = found?._id || null;
       console.log("[taskById] resolveRowId match", {
@@ -77,7 +80,10 @@ module.exports = async (req, res) => {
       if (!Number.isFinite(numericId)) return res.status(400).json({ error: "invalid id", debug });
       const list = await fetchAllRowsList();
       if (!Array.isArray(list)) return res.status(502).json({ error: "Failed to read rows from SeaTable", debug });
-      const found = list.find((r) => Number(r?.id) === numericId);
+      const found = list.find((r) => {
+        const fields = r && typeof r === "object" && r.row && typeof r.row === "object" ? r.row : r;
+        return Number(fields?.id ?? fields?.ID) === numericId;
+      });
       if (!found) return res.status(404).json({ error: "Task not found", debug });
       return res.status(200).json({ task: mapRowToTask(found) });
     }

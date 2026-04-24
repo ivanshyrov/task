@@ -107,7 +107,11 @@ async function seatableRequest(accessToken, url, options = {}) {
 }
 
 function mapRowToTask(row) {
-  const source = row || {};
+  // SeaTable can return row data in different shapes depending on version/endpoint:
+  // - flat: { _id, id, title, ... }
+  // - wrapped: { _id, row: { id, title, ... } }
+  const wrapper = row || {};
+  const source = (wrapper && typeof wrapper === "object" && wrapper.row && typeof wrapper.row === "object") ? wrapper.row : wrapper;
   const parseJsonField = (value) => {
     if (Array.isArray(value)) return value;
     if (typeof value !== "string" || !value.trim()) return [];
@@ -119,8 +123,8 @@ function mapRowToTask(row) {
     }
   };
   return {
-    row_id: source._id || "",
-    id: Number(source.id || 0),
+    row_id: wrapper._id || source._id || "",
+    id: Number((source.id ?? source.ID ?? 0) || 0),
     createdAt: source.created_at || "",
     updatedAt: source.updated_at || "",
     databaseId: source.database_id || "db1",
