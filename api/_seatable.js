@@ -41,18 +41,30 @@ async function getAppAccessToken() {
 function getRowsBaseUrl(accessMeta) {
   const dtableServer = (accessMeta.dtable_server || getServerBase()).replace(/\/+$/, "");
   const dtableUuid = accessMeta.dtable_uuid || process.env.SEATABLE_BASE_UUID;
+  // SeaTable Cloud returns dtable_server with "/api-gateway".
+  // For cloud we must use v2 endpoints, for self-hosted v1 is still common.
+  if (dtableServer.includes("/api-gateway")) {
+    return `${dtableServer}/api/v2/dtables/${dtableUuid}`;
+  }
   return `${dtableServer}/api/v1/dtables/${dtableUuid}`;
 }
 
 async function seatableRequest(accessToken, url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Token ${accessToken}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  const makeRequest = (scheme) =>
+    fetch(url, {
+      ...options,
+      headers: {
+        Authorization: `${scheme} ${accessToken}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+
+  let response = await makeRequest("Token");
+  if (response.status === 401 || response.status === 403) {
+    // Some installations expect Bearer instead of Token.
+    response = await makeRequest("Bearer");
+  }
 
   if (!response.ok) {
     const body = await response.text();
