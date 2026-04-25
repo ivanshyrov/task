@@ -34,11 +34,11 @@ module.exports = async (req, res) => {
     });
     const accessMeta = await getAppAccessToken();
     const baseUrl = getRowsBaseUrl(accessMeta);
-    const rowsUrl = `${baseUrl}/rows/?table_name=${encodeURIComponent(TABLE_NAME)}&view_name=${encodeURIComponent(VIEW_NAME)}`;
+    const rowsUrlBase = `${baseUrl}/rows/?table_name=${encodeURIComponent(TABLE_NAME)}&view_name=${encodeURIComponent(VIEW_NAME)}`;
     const rowsCreateUrl = `${baseUrl}/rows/`;
     const isV2 = baseUrl.includes("/api/v2/");
     debug.baseUrl = baseUrl;
-    debug.rowsUrl = rowsUrl;
+    debug.rowsUrl = rowsUrlBase;
     debug.rowsCreateUrl = rowsCreateUrl;
     debug.isV2 = isV2;
     debug.accessMetaHasUuid = Boolean(accessMeta && accessMeta.dtable_uuid);
@@ -49,7 +49,7 @@ module.exports = async (req, res) => {
     console.log("[tasks] computed", {
       isV2,
       baseUrl,
-      rowsUrl,
+      rowsUrl: rowsUrlBase,
       rowsCreateUrl,
       table: TABLE_NAME,
       view: VIEW_NAME,
@@ -58,15 +58,25 @@ module.exports = async (req, res) => {
     });
 
     if (req.method === "GET") {
-      const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
-      const list =
-        (Array.isArray(rows) ? rows : null) ||
-        rows?.rows ||
-        rows?.results ||
-        rows?.data?.rows ||
-        rows?.data?.results ||
-        null;
-      const tasks = Array.isArray(list) ? list.map(mapRowToTask) : [];
+      const limit = 1000;
+      let start = 0;
+      const all = [];
+      while (true) {
+        const pageUrl = `${rowsUrlBase}&start=${start}&limit=${limit}`;
+        const rows = await seatableRequest(accessMeta.access_token, pageUrl, { method: "GET" });
+        const list =
+          (Array.isArray(rows) ? rows : null) ||
+          rows?.rows ||
+          rows?.results ||
+          rows?.data?.rows ||
+          rows?.data?.results ||
+          null;
+        if (!Array.isArray(list) || list.length === 0) break;
+        all.push(...list);
+        if (list.length < limit) break;
+        start += limit;
+      }
+      const tasks = all.map(mapRowToTask);
       return res.status(200).json({ tasks });
     }
 
@@ -81,6 +91,19 @@ module.exports = async (req, res) => {
       });
       let created;
       try {
+        if (isV2) {
+          // Generate a stable monotonically increasing id on the server (source of truth is SeaTable).
+          const sqlUrl = `${baseUrl}/sql/`;
+          const maxRes = await seatableRequest(accessMeta.access_token, sqlUrl, {
+            method: "POST",
+            body: JSON.stringify({
+              sql: `SELECT MAX(id) as max_id FROM ${TABLE_NAME}`,
+              convert_keys: true,
+            }),
+          });
+          const maxId = Number(maxRes?.results?.[0]?.max_id ?? 0) || 0;
+          row.id = maxId + 1;
+        }
         const body = isV2 ? { table_name: TABLE_NAME, rows: [row] } : { row };
         created = await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
           method: "POST",

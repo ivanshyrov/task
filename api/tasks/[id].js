@@ -15,11 +15,8 @@ module.exports = async (req, res) => {
     numericId: null,
     bodyHasRowId: false,
     resolvedRowId: null,
-    seatableRowsShape: null,
-    seatableRowsTopKeys: null,
-    seatableListLen: null,
-    matchFound: false,
-    matchRowId: null,
+    sqlUsed: false,
+    sqlRowFound: false,
     error: null,
   };
   try {
@@ -34,58 +31,39 @@ module.exports = async (req, res) => {
     });
     const accessMeta = await getAppAccessToken();
     const baseUrl = getRowsBaseUrl(accessMeta);
-    const rowsUrl = `${baseUrl}/rows/?table_name=${encodeURIComponent(TABLE_NAME)}`;
     const isV2 = baseUrl.includes("/api/v2/");
 
-    async function fetchAllRowsList() {
-      const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
-      debug.seatableRowsShape = Array.isArray(rows) ? "array" : typeof rows;
-      const list =
-        (Array.isArray(rows) ? rows : null) ||
-        rows?.rows ||
-        rows?.results ||
-        rows?.data?.rows ||
-        rows?.data?.results ||
-        null;
-      debug.seatableRowsTopKeys =
-        rows && typeof rows === "object" && !Array.isArray(rows) ? Object.keys(rows).slice(0, 30) : null;
-      debug.seatableListLen = Array.isArray(list) ? list.length : null;
-      console.log("[taskById] rows fetched", {
-        gotArray: Array.isArray(rows),
-        topKeys: rows && typeof rows === "object" ? Object.keys(rows).slice(0, 15) : null,
-        listLen: Array.isArray(list) ? list.length : null,
+    async function sqlQueryOneById() {
+      if (!isV2) return null;
+      if (!Number.isFinite(numericId)) return null;
+      debug.sqlUsed = true;
+      const sqlUrl = `${baseUrl}/sql/`;
+      const payload = {
+        sql: `SELECT * FROM ${TABLE_NAME} WHERE id = ? LIMIT 1`,
+        convert_keys: true,
+        parameters: [numericId],
+      };
+      const result = await seatableRequest(accessMeta.access_token, sqlUrl, {
+        method: "POST",
+        body: JSON.stringify(payload),
       });
-      return Array.isArray(list) ? list : null;
+      const rows = result?.results;
+      const row = Array.isArray(rows) && rows.length ? rows[0] : null;
+      debug.sqlRowFound = Boolean(row);
+      return row;
     }
 
     async function resolveRowId() {
       // If frontend didn't send row_id, find it by our numeric "id" column.
-      if (!Number.isFinite(numericId)) return null;
-      const list = await fetchAllRowsList();
-      if (!Array.isArray(list)) return null;
-      const found = list.find((r) => {
-        const fields = r && typeof r === "object" && r.row && typeof r.row === "object" ? r.row : r;
-        return Number(fields?.id ?? fields?.ID) === numericId;
-      });
-      debug.matchFound = Boolean(found);
-      debug.matchRowId = found?._id || null;
-      console.log("[taskById] resolveRowId match", {
-        found: Boolean(found),
-        foundId: found?._id || null,
-      });
-      return found?._id || null;
+      const row = await sqlQueryOneById();
+      return row?._id || null;
     }
 
     if (req.method === "GET") {
       if (!Number.isFinite(numericId)) return res.status(400).json({ error: "invalid id", debug });
-      const list = await fetchAllRowsList();
-      if (!Array.isArray(list)) return res.status(502).json({ error: "Failed to read rows from SeaTable", debug });
-      const found = list.find((r) => {
-        const fields = r && typeof r === "object" && r.row && typeof r.row === "object" ? r.row : r;
-        return Number(fields?.id ?? fields?.ID) === numericId;
-      });
-      if (!found) return res.status(404).json({ error: "Task not found", debug });
-      return res.status(200).json({ task: mapRowToTask(found) });
+      const row = await sqlQueryOneById();
+      if (!row) return res.status(404).json({ error: "Task not found", debug });
+      return res.status(200).json({ task: mapRowToTask(row) });
     }
 
     if (req.method === "PUT") {
