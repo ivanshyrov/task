@@ -58,25 +58,39 @@ module.exports = async (req, res) => {
     });
 
     if (req.method === "GET") {
-      const limit = 1000;
-      let start = 0;
-      const all = [];
-      while (true) {
-        const pageUrl = `${rowsUrlBase}&start=${start}&limit=${limit}`;
-        const rows = await seatableRequest(accessMeta.access_token, pageUrl, { method: "GET" });
-        const list =
-          (Array.isArray(rows) ? rows : null) ||
-          rows?.rows ||
-          rows?.results ||
-          rows?.data?.rows ||
-          rows?.data?.results ||
-          null;
-        if (!Array.isArray(list) || list.length === 0) break;
-        all.push(...list);
-        if (list.length < limit) break;
-        start += limit;
+      let tasks = [];
+      if (isV2) {
+        const sqlUrl = `${baseUrl}/sql/`;
+        const result = await seatableRequest(accessMeta.access_token, sqlUrl, {
+          method: "POST",
+          body: JSON.stringify({
+            sql: `SELECT * FROM \`${TABLE_NAME}\` ORDER BY \`id\` ASC LIMIT 10000`,
+            convert_keys: true,
+          }),
+        });
+        const list = Array.isArray(result?.results) ? result.results : [];
+        tasks = list.map(mapRowToTask);
+      } else {
+        const limit = 1000;
+        let start = 0;
+        const all = [];
+        while (true) {
+          const pageUrl = `${rowsUrlBase}&start=${start}&limit=${limit}`;
+          const rows = await seatableRequest(accessMeta.access_token, pageUrl, { method: "GET" });
+          const list =
+            (Array.isArray(rows) ? rows : null) ||
+            rows?.rows ||
+            rows?.results ||
+            rows?.data?.rows ||
+            rows?.data?.results ||
+            null;
+          if (!Array.isArray(list) || list.length === 0) break;
+          all.push(...list);
+          if (list.length < limit) break;
+          start += limit;
+        }
+        tasks = all.map(mapRowToTask);
       }
-      const tasks = all.map(mapRowToTask);
       return res.status(200).json({ tasks });
     }
 
@@ -111,6 +125,21 @@ module.exports = async (req, res) => {
           method: "POST",
           body: JSON.stringify(body),
         });
+        if (isV2) {
+          // SeaTable responses can omit the row data; re-fetch by assigned id to return canonical payload.
+          const assignedId = row.id;
+          const sqlUrl = `${baseUrl}/sql/`;
+          const fetched = await seatableRequest(accessMeta.access_token, sqlUrl, {
+            method: "POST",
+            body: JSON.stringify({
+              sql: `SELECT * FROM \`${TABLE_NAME}\` WHERE \`id\` = ? LIMIT 1`,
+              convert_keys: true,
+              parameters: [assignedId],
+            }),
+          });
+          const canonical = Array.isArray(fetched?.results) && fetched.results.length ? fetched.results[0] : null;
+          if (canonical) created = canonical;
+        }
       } catch (firstError) {
         const msg = firstError?.message || String(firstError);
         debug.seatableError = msg.slice(0, 2000);
