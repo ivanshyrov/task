@@ -422,7 +422,8 @@
             });
             let maxId = 0;
             databases.forEach(db => db.tasks.forEach(t => { if (t.id > maxId) maxId = t.id; }));
-            nextTaskId = Math.max(nextTaskId, maxId + 1);
+            // SeaTable is the source of truth: reset local counter from remote max id.
+            nextTaskId = maxId + 1;
             refreshTaskRelatedUi();
             setSyncBanner('SeaTable подключен. Данные актуальны.');
         } catch (error) {
@@ -861,7 +862,7 @@
         }
 
         const newTask = {
-            id: nextTaskId++,
+            // SeaTable is the source of truth for id; server assigns it.
             createdAt: new Date().toISOString().split('T')[0],
             updatedAt: new Date().toISOString().split('T')[0],
             databaseId: dbId,
@@ -899,13 +900,18 @@
 
         try {
             db.tasks.push(newTask);
-            addNotification(`Новая задача #${newTask.id} от ${newTask.author}`, newTask.id);
             refreshTaskRelatedUi();
             const payload = await apiRequest(API_BASE, {
                 method: 'POST',
                 body: JSON.stringify(newTask)
             });
-            if (payload?.task?.row_id) taskRowMap.set(newTask.id, payload.task.row_id);
+            if (payload?.task) {
+                Object.assign(newTask, payload.task);
+                if (payload.task.row_id) taskRowMap.set(newTask.id, payload.task.row_id);
+                nextTaskId = Math.max(nextTaskId, Number(newTask.id) + 1);
+                addNotification(`Новая задача #${newTask.id} от ${newTask.author}`, newTask.id);
+                refreshTaskRelatedUi();
+            }
             quickTaskForm.reset();
             document.querySelector('#quickTaskForm select[name="database"]').value = currentDatabaseId;
             showToast(`Задача #${newTask.id} успешно создана`);
