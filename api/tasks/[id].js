@@ -39,17 +39,30 @@ module.exports = async (req, res) => {
       debug.sqlUsed = true;
       const sqlUrl = `${baseUrl}/sql/`;
       const payload = {
-        sql: `SELECT * FROM ${TABLE_NAME} WHERE id = ? LIMIT 1`,
+        sql: `SELECT _id, id FROM \`${TABLE_NAME}\` WHERE \`id\` = ? LIMIT 1`,
         convert_keys: true,
         parameters: [numericId],
       };
-      const result = await seatableRequest(accessMeta.access_token, sqlUrl, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      let result;
+      try {
+        result = await seatableRequest(accessMeta.access_token, sqlUrl, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      } catch (e) {
+        console.error("[taskById] sql failed", { message: e?.message || String(e) });
+        throw e;
+      }
       const rows = result?.results;
       const row = Array.isArray(rows) && rows.length ? rows[0] : null;
       debug.sqlRowFound = Boolean(row);
+      console.log("[taskById] sql result", {
+        hasResultsArray: Array.isArray(rows),
+        resultsLen: Array.isArray(rows) ? rows.length : null,
+        firstKeys: row && typeof row === "object" ? Object.keys(row).slice(0, 20) : null,
+        firstId: row?.id ?? null,
+        firstRowId: row?._id ?? null,
+      });
       return row;
     }
 
