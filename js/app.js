@@ -1064,8 +1064,32 @@
         currentUser.email = document.getElementById('profileEmail').value;
         currentUser.phone = document.getElementById('profilePhone').value;
         if (oldName !== currentUser.fullName) {
-            databases.forEach(db => db.tasks.forEach(t => { if (t.author === oldName) t.author = currentUser.fullName; }));
+            const toUpdate = [];
+            databases.forEach(db => db.tasks.forEach(t => {
+                if (t.author === oldName) {
+                    t.author = currentUser.fullName;
+                    toUpdate.push(t);
+                }
+            }));
             renderTasks();
+            // Best-effort sync to SeaTable: update all affected tasks.
+            void (async () => {
+                for (const task of toUpdate) {
+                    const rowId = task.row_id || taskRowMap.get(task.id);
+                    if (!rowId) continue;
+                    const record = SeaTableAdapter.toRecord(task);
+                    try {
+                        await apiRequest(`${API_BASE}/${task.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ ...record, row_id: rowId })
+                        });
+                    } catch (err) {
+                        // keep UI responsive; server banner will show on next sync if needed
+                        console.error('Не удалось синхронизировать ФИО в SeaTable', err);
+                    }
+                }
+                setSyncBanner('Изменения сохранены в SeaTable.');
+            })();
         }
         profileModal.classList.remove('show');
     });

@@ -88,7 +88,11 @@ module.exports = async (req, res) => {
       const row = mapTaskToRow({ ...req.body, id: Number(id) });
       const updated = await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
         method: "PUT",
-        body: JSON.stringify(isV2 ? { table_name: TABLE_NAME, row_id: rowId, row } : { row_id: rowId, row }),
+        body: JSON.stringify(
+          isV2
+            ? { table_name: TABLE_NAME, updates: [{ row_id: rowId, row }] }
+            : { row_id: rowId, row }
+        ),
       });
       return res.status(200).json({ task: mapRowToTask(updated) });
     }
@@ -99,10 +103,14 @@ module.exports = async (req, res) => {
       debug.resolvedRowId = rowId || null;
       if (!rowId) return res.status(404).json({ error: "Task not found (cannot resolve row_id)", debug });
 
-      await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
+      const deleted = await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
         method: "DELETE",
-        body: JSON.stringify(isV2 ? { table_name: TABLE_NAME, row_id: rowId } : { row_id: rowId }),
+        body: JSON.stringify(isV2 ? { table_name: TABLE_NAME, row_ids: [rowId] } : { row_id: rowId }),
       });
+      // SeaTable v2 returns { deleted_rows: number }
+      if (isV2 && deleted && typeof deleted.deleted_rows === "number" && deleted.deleted_rows < 1) {
+        return res.status(404).json({ error: "Row not deleted in SeaTable", debug });
+      }
       return res.status(200).json({ ok: true });
     }
 
