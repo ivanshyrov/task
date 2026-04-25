@@ -107,6 +107,13 @@ async function seatableRequest(accessToken, url, options = {}) {
 }
 
 function mapRowToTask(row) {
+  // POST/GET v2 responses can vary; sometimes the returned object contains
+  // a `rows` array or a wrapped `row`.
+  const maybeWrapped = row && typeof row === "object" ? row : {};
+  if (Array.isArray(maybeWrapped.rows) && maybeWrapped.rows.length === 1) {
+    row = maybeWrapped.rows[0];
+  }
+
   // SeaTable can return row data in different shapes depending on version/endpoint:
   // - flat: { _id, id, title, ... }
   // - wrapped: { _id, row: { id, title, ... } }
@@ -154,8 +161,9 @@ function mapRowToTask(row) {
 }
 
 function mapTaskToRow(task) {
+  const idNum = Number(task?.id);
   return {
-    id: Number(task.id),
+    ...(Number.isFinite(idNum) ? { id: idNum } : {}),
     created_at: task.createdAt || "",
     updated_at: task.updatedAt || "",
     database_id: task.databaseId || "db1",

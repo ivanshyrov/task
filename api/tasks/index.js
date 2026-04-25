@@ -97,12 +97,14 @@ module.exports = async (req, res) => {
           const maxRes = await seatableRequest(accessMeta.access_token, sqlUrl, {
             method: "POST",
             body: JSON.stringify({
-              sql: `SELECT MAX(id) as max_id FROM ${TABLE_NAME}`,
+              sql: `SELECT id FROM \`${TABLE_NAME}\` ORDER BY \`id\` DESC LIMIT 1`,
               convert_keys: true,
             }),
           });
-          const maxId = Number(maxRes?.results?.[0]?.max_id ?? 0) || 0;
-          row.id = maxId + 1;
+          const maxId = Number(maxRes?.results?.[0]?.id ?? 0) || 0;
+          const assignedId = maxId + 1;
+          row.id = assignedId;
+          console.log("[tasks] assigned id", { maxId, assignedId });
         }
         const body = isV2 ? { table_name: TABLE_NAME, rows: [row] } : { row };
         created = await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
