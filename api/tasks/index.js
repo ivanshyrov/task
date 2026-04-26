@@ -160,7 +160,7 @@ module.exports = async (req, res) => {
       }
 
       const row = mapTaskToRow(task);
-      console.log("[tasks] updating", { rowId, taskId });
+      console.log("[tasks] updating", { rowId, taskId, row });
 
       const body = isV2 ? { 
         table_name: TABLE_NAME, 
@@ -170,10 +170,16 @@ module.exports = async (req, res) => {
         ...row 
       };
 
-      await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
-        method: "PUT",
-        body: JSON.stringify(body),
-      });
+      try {
+        const result = await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
+          method: "PUT",
+          body: JSON.stringify(body),
+        });
+        console.log("[tasks] update result", { result });
+      } catch (updateError) {
+        console.error("[tasks] update failed", { message: updateError?.message });
+        throw updateError;
+      }
 
       return res.status(200).json({ success: true, task });
     }

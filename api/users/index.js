@@ -189,16 +189,24 @@ module.exports = async (req, res) => {
         ...(user.passwordHash ? { password_hash: user.passwordHash } : {})
       };
 
-      await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
-        method: "PUT",
-        body: JSON.stringify(isV2 ? { 
-          table_name: TABLE_NAME, 
-          rows: [{ _id: rowId, ...row }] 
-        } : { 
-          row_id: rowId, 
-          ...row 
-        }),
-      });
+      console.log("[users] updating", { username, rowId, row });
+
+      try {
+        await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
+          method: "PUT",
+          body: JSON.stringify(isV2 ? { 
+            table_name: TABLE_NAME, 
+            rows: [{ _id: rowId, ...row }] 
+          } : { 
+            row_id: rowId, 
+            ...row 
+          }),
+        });
+        console.log("[users] update success", { username });
+      } catch (updateError) {
+        console.error("[users] update failed", { message: updateError?.message });
+        throw updateError;
+      }
 
       return res.status(200).json({ success: true });
     }

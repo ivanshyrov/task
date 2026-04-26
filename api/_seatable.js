@@ -164,8 +164,7 @@ function mapTaskToRow(task) {
   const idNum = Number(task?.id);
   return {
     ...(Number.isFinite(idNum) ? { id: idNum } : {}),
-    created_at: task.createdAt || "",
-    updated_at: task.updatedAt || "",
+    updated_at: task.updatedAt || new Date().toISOString().split('T')[0],
     database_id: task.databaseId || "db1",
     type: task.type || "Прочее",
     title: task.title || "",
