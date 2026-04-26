@@ -881,7 +881,6 @@
         
         // Рендер карточек для мобильных
         const cardsContainer = document.getElementById('tasksCardsContainer');
-        const tasksTable = document.querySelector('.tasks-table');
         
         if (cardsContainer) {
             let cardsHtml = '';
@@ -927,11 +926,12 @@
         }
             
         // Показываем/скрываем таблицу и карточки через классы
-        if (isMobile && cardsContainer && tasksTable) {
-            tasksTable.style.display = 'none';
+        const tableWrapper = document.querySelector('.table-wrapper');
+        if (isMobile && cardsContainer) {
+            if (tableWrapper) tableWrapper.style.display = 'none';
             cardsContainer.classList.add('show-mobile');
         } else {
-            if (tasksTable) tasksTable.style.display = 'table';
+            if (tableWrapper) tableWrapper.style.display = '';
             if (cardsContainer) cardsContainer.classList.remove('show-mobile');
         }
         
