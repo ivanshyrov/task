@@ -149,6 +149,57 @@ module.exports = async (req, res) => {
       return res.status(201).json({ task: mapRowToTask(created) });
     }
 
+    // PUT - обновить задачу
+    if (req.method === "PUT") {
+      const task = req.body || {};
+      const rowId = task.row_id;
+      
+      if (!rowId) {
+        return res.status(400).json({ error: "Требуется row_id" });
+      }
+
+      const row = mapTaskToRow(task);
+      console.log("[tasks] updating", { rowId, taskId: task.id });
+
+      const body = isV2 ? { 
+        table_name: TABLE_NAME, 
+        rows: [{ _id: rowId, ...row }] 
+      } : { 
+        row_id: rowId, 
+        ...row 
+      };
+
+      await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+
+      return res.status(200).json({ success: true, task });
+    }
+
+    // DELETE - удалить задачу
+    if (req.method === "DELETE") {
+      const row_id = req.body?.row_id;
+      
+      if (!row_id) {
+        return res.status(400).json({ error: "Требуется row_id" });
+      }
+
+      console.log("[tasks] deleting", { row_id });
+
+      const body = isV2 ? { 
+        table_name: TABLE_NAME, 
+        row_ids: [row_id] 
+      } : [row_id];
+
+      await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
+        method: "DELETE",
+        body: JSON.stringify(body),
+      });
+
+      return res.status(200).json({ success: true });
+    }
+
     return res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
     const message = error?.message || String(error);
