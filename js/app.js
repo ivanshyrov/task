@@ -894,6 +894,8 @@
                     else daysDisplay = `${daysLeft} дн.`;
                 }
                 
+                const canDelete = canDeleteTask(task);
+                
                 cardsHtml += `
                     <div class="task-card" data-taskid="${task.id}">
                         <div class="task-card-header">
