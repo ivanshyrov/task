@@ -55,6 +55,45 @@
             }
             saveUsers();
         }
+        
+        // Загружаем пользователей из SeaTable (без паролей)
+        try {
+            const payload = await apiRequest(API_USERS);
+            const remoteUsers = Array.isArray(payload.users) ? payload.users : [];
+            
+            // Merge remote users with local password hashes
+            const localUsersMap = new Map(users.map(u => [u.username, u]));
+            
+            for (const remoteUser of remoteUsers) {
+                const localUser = localUsersMap.get(remoteUser.username);
+                if (localUser) {
+                    // Update user data from SeaTable, keep local passwordHash
+                    localUser.fullName = remoteUser.fullName || localUser.fullName;
+                    localUser.role = remoteUser.role || localUser.role;
+                    localUser.department = remoteUser.department || localUser.department;
+                    localUser.position = remoteUser.position || localUser.position;
+                    localUser.email = remoteUser.email || localUser.email;
+                    localUser.phone = remoteUser.phone || localUser.phone;
+                } else {
+                    // New user from SeaTable - add with empty passwordHash (cannot login until password is set)
+                    users.push({
+                        username: remoteUser.username,
+                        passwordHash: '', // No password hash - user exists in SeaTable but cannot login locally
+                        role: remoteUser.role || 'employee',
+                        department: remoteUser.department || '',
+                        fullName: remoteUser.fullName || '',
+                        position: remoteUser.position || '',
+                        email: remoteUser.email || '',
+                        phone: remoteUser.phone || ''
+                    });
+                }
+            }
+            
+            saveUsers();
+            console.log('[initUsers] synced with SeaTable:', users.length, 'users');
+        } catch (error) {
+            console.log('[initUsers] offline mode, using localStorage only');
+        }
     }
 
     function saveUsers() {
