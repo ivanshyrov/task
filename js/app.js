@@ -881,6 +881,8 @@
         
         // Рендер карточек для мобильных
         const cardsContainer = document.getElementById('tasksCardsContainer');
+        const tasksTable = document.querySelector('.tasks-table');
+        
         if (cardsContainer) {
             let cardsHtml = '';
             filtered.forEach(task => {
@@ -924,13 +926,13 @@
             cardsContainer.innerHTML = cardsHtml || '<div style="text-align:center; padding:40px; color:var(--text-muted);">Нет задач</div>';
         }
             
-        // Показываем/скрываем таблицу и карточки
-        if (isMobile && cardsContainer) {
-            document.querySelector('.tasks-table').style.display = 'none';
-            cardsContainer.style.display = 'flex';
+        // Показываем/скрываем таблицу и карточки через классы
+        if (isMobile && cardsContainer && tasksTable) {
+            tasksTable.style.display = 'none';
+            cardsContainer.classList.add('show-mobile');
         } else {
-            document.querySelector('.tasks-table').style.display = 'table';
-            if (cardsContainer) cardsContainer.style.display = 'none';
+            if (tasksTable) tasksTable.style.display = 'table';
+            if (cardsContainer) cardsContainer.classList.remove('show-mobile');
         }
         
         // Перевешиваем все обработчики
@@ -1012,34 +1014,47 @@
     }
 
     function attachRowButtons() {
-        document.querySelectorAll('.view-task').forEach(btn => btn.addEventListener('click', e => {
-            e.stopPropagation();
-            const row = e.target.closest('tr');
-            openTaskDetail(parseInt(row.dataset.taskid), true);
-        }));
-        document.querySelectorAll('.delete-task-btn').forEach(btn => btn.addEventListener('click', async e => {
-            e.stopPropagation();
-            if (btn.disabled) return;
-            const taskId = parseInt(btn.dataset.id);
-            const context = findTaskContext(taskId);
-            if (!context || !canDeleteTask(context.task)) return;
-            showConfirmModal('Удалить задачу?', 'Вы уверены?', async () => {
-                const rowId = context?.task?.row_id || taskRowMap.get(taskId);
-                const snapshot = [...context.db.tasks];
-                context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
+        // Удаляем старые обработчики
+        document.querySelectorAll('.view-task').forEach(btn => {
+            btn.removeEventListener('click', handleViewTask);
+            btn.addEventListener('click', handleViewTask);
+        });
+        document.querySelectorAll('.delete-task-btn').forEach(btn => {
+            btn.removeEventListener('click', handleDeleteTaskBtn);
+            btn.addEventListener('click', handleDeleteTaskBtn);
+        });
+    }
+
+    function handleViewTask(e) {
+        e.stopPropagation();
+        const row = e.target.closest('tr');
+        if (!row) return;
+        openTaskDetail(parseInt(row.dataset.taskid), true);
+    }
+
+    async function handleDeleteTaskBtn(e) {
+        e.stopPropagation();
+        const btn = e.target.closest('button');
+        if (btn.disabled) return;
+        const taskId = parseInt(btn.dataset.id);
+        const context = findTaskContext(taskId);
+        if (!context || !canDeleteTask(context.task)) return;
+        showConfirmModal('Удалить задачу?', 'Вы уверены?', async () => {
+            const rowId = context?.task?.row_id || taskRowMap.get(taskId);
+            const snapshot = [...context.db.tasks];
+            context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
+            refreshTaskRelatedUi();
+            try {
+                await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
+                taskRowMap.delete(taskId);
+                setSyncBanner('Изменения сохранены в SeaTable.');
+                showToast('Задача удалена', 'success');
+            } catch (error) {
+                context.db.tasks = snapshot;
                 refreshTaskRelatedUi();
-                try {
-                    await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
-                    taskRowMap.delete(taskId);
-                    setSyncBanner('Изменения сохранены в SeaTable.');
-                    showToast('Задача удалена', 'success');
-                } catch (error) {
-                    context.db.tasks = snapshot;
-                    refreshTaskRelatedUi();
-                    setSyncBanner(`Не удалось удалить задачу: ${error.message}`, true);
-                }
-            });
-        }));
+                setSyncBanner(`Не удалось удалить задачу: ${error.message}`, true);
+            }
+        });
     }
 
     function attachTaskRowClicks() {

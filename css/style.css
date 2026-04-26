@@ -375,6 +375,82 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
     filter: brightness(0.95);
 }
 
+/* ===== КАРТОЧКИ ЗАДАЧ (МОБИЛЬНЫЕ) ===== */
+.cards-container {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    margin: 12px -12px;
+}
+
+.task-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.task-card:active {
+    transform: scale(0.98);
+}
+
+.task-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.task-card-id {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.task-card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 8px 0;
+    color: var(--text-main);
+}
+
+.task-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.task-card-meta-item {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--bg-light);
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.task-card-status {
+    margin-top: 12px;
+}
+
+.task-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.task-card-actions .btn {
+    flex: 1;
+    justify-content: center;
+    padding: 10px;
+    font-size: 0.85rem;
+}
+
 /* ===== АДАПТИВНОСТЬ: МОБИЛЬНЫЕ УСТРОЙСТВА ===== */
 @media (max-width: 768px) {
     /* ===== ОБЩИЕ СТИЛИ ===== */
@@ -555,77 +631,9 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
     }
     
     /* ===== КАРТОЧКИ ЗАДАЧ (МОБИЛЬНЫЕ) ===== */
-    .cards-container {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-    
-    .task-card {
-        background: white;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    
-    .task-card:active {
-        transform: scale(0.98);
-    }
-    
-    .task-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 12px;
-    }
-    
-    .task-card-id {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        font-weight: 600;
-    }
-    
-    .task-card-title {
-        font-size: 1rem;
-        font-weight: 600;
-        margin: 8px 0;
-        color: var(--text-main);
-    }
-    
-    .task-card-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 12px;
-    }
-    
-    .task-card-meta-item {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        background: var(--bg-light);
-        padding: 4px 8px;
-        border-radius: 6px;
-    }
-    
-    .task-card-status {
-        margin-top: 12px;
-    }
-    
-    .task-card-actions {
-        display: flex;
-        gap: 8px;
-        margin-top: 12px;
-        padding-top: 12px;
-        border-top: 1px solid var(--border);
-    }
-    
-    .task-card-actions .btn {
-        flex: 1;
-        justify-content: center;
-        padding: 10px;
-        font-size: 0.85rem;
+    /* Стили уже определены выше, здесь только мобильные корректировки */
+    .cards-container.show-mobile {
+        display: flex !important;
     }
     
     /* ===== СТАТИСТИКА ===== */
