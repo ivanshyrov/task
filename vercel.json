@@ -1,21 +1,3 @@
 {
-  "outputDirectory": ".",
-  "rewrites": [
-    {
-      "source": "/api/users",
-      "destination": "/api/users/index.js"
-    },
-    {
-      "source": "/api/users/(.*)",
-      "destination": "/api/users/index.js"
-    },
-    {
-      "source": "/api/tasks",
-      "destination": "/api/tasks/index.js"
-    },
-    {
-      "source": "/api/tasks/(.*)",
-      "destination": "/api/tasks/index.js"
-    }
-  ]
+  "outputDirectory": "."
 }

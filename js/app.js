@@ -985,7 +985,7 @@
             context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
             refreshTaskRelatedUi();
             try {
-                await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
+                await apiRequest(API_BASE, { method: 'DELETE', body: JSON.stringify({ row_id: rowId, id: taskId }) });
                 taskRowMap.delete(taskId);
                 setSyncBanner('Изменения сохранены в SeaTable.');
                 showToast('Задача удалена', 'success');
@@ -1047,7 +1047,7 @@
             context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
             refreshTaskRelatedUi();
             try {
-                await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
+                await apiRequest(API_BASE, { method: 'DELETE', body: JSON.stringify({ row_id: rowId, id: taskId }) });
                 taskRowMap.delete(taskId);
                 setSyncBanner('Изменения сохранены в SeaTable.');
                 showToast('Задача удалена', 'success');
@@ -1211,7 +1211,7 @@
         try {
             const rowId = task.row_id || taskRowMap.get(task.id);
             const record = SeaTableAdapter.toRecord(task);
-            await apiRequest(`${API_BASE}/${task.id}`, { method: 'PUT', body: JSON.stringify({ ...record, row_id: rowId }) });
+            await apiRequest(API_BASE, { method: 'PUT', body: JSON.stringify({ ...record, row_id: rowId, id: task.id }) });
             showToast(`Задача #${task.id} обновлена`, 'success');
             setSyncBanner('Изменения сохранены в SeaTable.');
             return true;

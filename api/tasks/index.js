@@ -153,13 +153,14 @@ module.exports = async (req, res) => {
     if (req.method === "PUT") {
       const task = req.body || {};
       const rowId = task.row_id;
+      const taskId = task.id;
       
       if (!rowId) {
         return res.status(400).json({ error: "Требуется row_id" });
       }
 
       const row = mapTaskToRow(task);
-      console.log("[tasks] updating", { rowId, taskId: task.id });
+      console.log("[tasks] updating", { rowId, taskId });
 
       const body = isV2 ? { 
         table_name: TABLE_NAME, 
@@ -180,12 +181,13 @@ module.exports = async (req, res) => {
     // DELETE - удалить задачу
     if (req.method === "DELETE") {
       const row_id = req.body?.row_id;
+      const id = req.body?.id;
       
       if (!row_id) {
         return res.status(400).json({ error: "Требуется row_id" });
       }
 
-      console.log("[tasks] deleting", { row_id });
+      console.log("[tasks] deleting", { row_id, id });
 
       const body = isV2 ? { 
         table_name: TABLE_NAME, 
