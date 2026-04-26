@@ -2,6 +2,188 @@
     
     "use strict";
 
+    // ==================== УТИЛИТЫ ====================
+    async function hashPassword(password) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '—';
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '—';
+        return date.toLocaleDateString('ru-RU');
+    }
+
+    function formatDateTime(dateStr) {
+        if (!dateStr) return '—';
+        return new Date(dateStr).toLocaleString('ru-RU');
+    }
+
+    function sanitizeHTML(str) {
+        const temp = document.createElement('div');
+        temp.textContent = str;
+        return temp.innerHTML;
+    }
+
+    // ==================== УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ====================
+    const USERS_STORAGE_KEY = 'taskPlannerUsersV1';
+    const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 минут
+    let sessionTimer = null;
+
+    async function initUsers() {
+        const stored = localStorage.getItem(USERS_STORAGE_KEY);
+        if (stored) {
+            users = JSON.parse(stored);
+        } else {
+            // Первая инициализация: хешируем пароли и сохраняем
+            for (const user of DEFAULT_USERS) {
+                const passwordHash = await hashPassword(user.password);
+                users.push({
+                    username: user.username,
+                    passwordHash,
+                    role: user.role,
+                    department: user.department,
+                    fullName: user.fullName,
+                    position: user.position,
+                    email: user.email,
+                    phone: user.phone
+                });
+            }
+            saveUsers();
+        }
+    }
+
+    function saveUsers() {
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    }
+
+    // Синхронизация пользователя с SeaTable
+    async function syncUserToSeaTable(user, action) {
+        try {
+            if (action === 'create') {
+                await apiRequest(API_USERS, {
+                    method: 'POST',
+                    body: JSON.stringify({ user })
+                });
+            } else if (action === 'update') {
+                await apiRequest(`${API_USERS}/${user.username}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ user })
+                });
+            } else if (action === 'delete') {
+                await apiRequest(`${API_USERS}/${user.username}`, {
+                    method: 'DELETE'
+                });
+            }
+        } catch (error) {
+            console.error('Не удалось синхронизировать пользователя с SeaTable:', error);
+            // Не показываем ошибку пользователю - данные сохранены локально
+        }
+    }
+
+    function resetSessionTimer() {
+        if (sessionTimer) clearTimeout(sessionTimer);
+        if (!currentUser) return;
+        sessionTimer = setTimeout(() => {
+            showToast('Сессия истекла. Выполните вход повторно.', 'warning');
+            logoutUser();
+        }, SESSION_TIMEOUT);
+    }
+
+    function findUserByUsername(username) {
+        return users.find(u => u.username === username);
+    }
+
+    async function addUser(userData) {
+        if (findUserByUsername(userData.username)) {
+            return { success: false, error: 'Пользователь с таким логином уже существует' };
+        }
+        const passwordHash = await hashPassword(userData.password);
+        const newUser = {
+            username: sanitizeHTML(userData.username),
+            passwordHash,
+            role: 'employee',
+            department: sanitizeHTML(userData.department || ''),
+            fullName: sanitizeHTML(userData.fullName),
+            position: sanitizeHTML(userData.position || ''),
+            email: sanitizeHTML(userData.email || ''),
+            phone: sanitizeHTML(userData.phone || '')
+        };
+        users.push(newUser);
+        saveUsers();
+        // Синхронизация с SeaTable (если нужно)
+        void syncUserToSeaTable(newUser, 'create');
+        return { success: true, user: newUser };
+    }
+
+    async function editUser(username, userData) {
+        const user = findUserByUsername(username);
+        if (!user) return { success: false, error: 'Пользователь не найден' };
+        
+        // Проверка уникальности нового логина
+        if (userData.username !== username && findUserByUsername(userData.username)) {
+            return { success: false, error: 'Пользователь с таким логином уже существует' };
+        }
+        
+        user.username = sanitizeHTML(userData.username);
+        user.fullName = sanitizeHTML(userData.fullName);
+        user.position = sanitizeHTML(userData.position || '');
+        user.department = sanitizeHTML(userData.department || '');
+        user.email = sanitizeHTML(userData.email || '');
+        user.phone = sanitizeHTML(userData.phone || '');
+        
+        // Если пароль изменён
+        if (userData.password && userData.password.trim()) {
+            user.passwordHash = await hashPassword(userData.password);
+        }
+        
+        saveUsers();
+        void syncUserToSeaTable(user, 'update');
+        return { success: true, user };
+    }
+
+    function deleteUser(username) {
+        if (username === 'admin') {
+            return { success: false, error: 'Нельзя удалить главного администратора' };
+        }
+        const idx = users.findIndex(u => u.username === username);
+        if (idx < 0) return { success: false, error: 'Пользователь не найден' };
+        const deletedUser = users[idx];
+        users.splice(idx, 1);
+        saveUsers();
+        void syncUserToSeaTable(deletedUser, 'delete');
+        return { success: true };
+    }
+
+    function showConfirmModal(title, message, onConfirm) {
+        const modal = document.getElementById('confirmModal');
+        if (!modal) { if (confirm(title + '\n' + message)) onConfirm(); return; }
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMessage').textContent = message;
+        const confirmBtn = document.getElementById('confirmConfirmBtn');
+        const cancelBtn = document.getElementById('confirmCancelBtn');
+        const handler = () => { modal.classList.remove('show'); confirmBtn.removeEventListener('click', handler); cancelBtn.removeEventListener('click', cancelHandler); if (onConfirm) onConfirm(); };
+        const cancelHandler = () => { modal.classList.remove('show'); };
+        confirmBtn.addEventListener('click', handler);
+        cancelBtn.addEventListener('click', cancelHandler);
+        modal.classList.add('show');
+    }
+
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.style.background = type === 'error' ? 'var(--danger)' : (type === 'warning' ? 'var(--warning)' : 'var(--primary)');
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
     // ==================== ДАННЫЕ ====================
     const databases = [
         { id: 'db1', name: 'Основная', tasks: [] },
@@ -22,12 +204,16 @@
     let activeQuickFilter = '';
     const taskRowMap = new Map();
     const API_BASE = '/api/tasks';
+    const API_USERS = '/api/users';
 
-    const users = [
+    // Стандартные пользователи (для первой инициализации)
+    const DEFAULT_USERS = [
         { username: 'admin', password: 'admin123', role: 'admin', department: 'IT', fullName: 'Администратор Системы', position: 'Главный администратор', email: 'admin@it-sp.ru', phone: '+7 (999) 111-11-11' },
         { username: 'director', password: 'director123', role: 'director', department: 'IT', fullName: 'Иванов Сергей Петрович', position: 'Руководитель отдела', email: 'director@it-sp.ru', phone: '+7 (999) 222-22-22' },
         { username: 'employee', password: 'employee123', role: 'employee', department: 'IT', fullName: 'Петров Алексей Иванович', position: 'Специалист', email: 'employee@it-sp.ru', phone: '+7 (999) 333-33-33' }
     ];
+
+    let users = [];
 
     let employeesData = [
         { name: 'Шувалов Е.А.', position: 'Начальник IT', department: 'IT', phone: '2-22-76', email: 'shuvalov@it-sp.ru' },
@@ -208,6 +394,7 @@
     }
 
     function logoutUser() {
+        if (sessionTimer) clearTimeout(sessionTimer);
         currentUser = null;
         app.style.display = 'none';
         loginScreen.style.display = 'flex';
@@ -364,9 +551,17 @@
     }
 
     function getAssignableEmployees(department) {
-        const fromEmployees = employeesData.filter(e => e.department === department).map(e => e.name);
-        const fromUsers = users.filter(u => u.department === department).map(u => u.fullName);
-        return [...new Set([...fromEmployees, ...fromUsers])].sort();
+        // Получаем всех пользователей с ролью employee или director
+        const fromUsers = users
+            .filter(u => (u.role === 'employee' || u.role === 'director') && (!department || u.department === department))
+            .map(u => u.fullName);
+        
+        // Добавляем сотрудников из старого формата (для обратной совместимости)
+        const fromEmployees = employeesData
+            .filter(e => !department || e.department === department)
+            .map(e => e.name);
+        
+        return [...new Set([...fromUsers, ...fromEmployees])].sort();
     }
 
     function findTaskContext(taskId) {
@@ -432,17 +627,25 @@
     }
 
     // ==================== АВТОРИЗАЦИЯ ====================
-    loginForm.addEventListener('submit', e => {
+    loginForm.addEventListener('submit', async e => {
         e.preventDefault();
+        
+        // Ждём инициализации пользователей
+        if (users.length === 0) {
+            await initUsers();
+        }
+        
         const username = document.getElementById('loginUsername').value.trim();
         const password = document.getElementById('loginPassword').value;
-        const user = users.find(u => u.username === username && u.password === password);
-        if (!user) { alert('Неверный логин или пароль'); return; }
+        const passwordHash = await hashPassword(password);
+        const user = users.find(u => u.username === username && u.passwordHash === passwordHash);
+        if (!user) { showToast('Неверный логин или пароль', 'error'); return; }
         currentUser = { ...user };
         applyRole(currentUser.role);
         loginScreen.style.display = 'none';
         app.style.display = 'flex';
         initApp();
+        resetSessionTimer();
     });
 
     function applyRole(role) {
@@ -457,6 +660,9 @@
         const canBulkDelete = role === 'admin' || role === 'director';
         deleteSelectedBtn.style.display = canBulkDelete ? 'inline-flex' : 'none';
         selectAllTasks.style.display = canBulkDelete ? 'inline-block' : 'none';
+        // Показываем раздел "Пользователи" только для admin
+        const usersMenuItem = document.querySelector('.menu-item[data-view="users"]');
+        if (usersMenuItem) usersMenuItem.style.display = role === 'admin' ? 'flex' : 'none';
         updateDefaultViewOptions();
     }
 
@@ -473,9 +679,9 @@
         populateDatabaseSelects();
         populateDepartmentSelects();
         renderTasks();
-        renderEmployees();
         renderDepartments();
         renderBasesList();
+        renderUsers();
         updateStats();
         updateNotificationBadge();
         const settings = loadSettings();
@@ -486,6 +692,7 @@
         switchView(resolveStartView(settings.defaultView));
         updateHeaderAvatar();
         void syncTasksFromApi();
+        resetSessionTimer();
     }
 
     function updateHeaderAvatar() {
@@ -597,6 +804,9 @@
 
     function renderTasks() {
         const filtered = filterTasks();
+        const isMobile = window.innerWidth <= 768;
+        
+        // Рендер таблицы
         let html = '';
         filtered.forEach(task => {
             const statusClass = getStatusClass(task.status);
@@ -614,27 +824,122 @@
 
             html += `<tr data-index="${task.id}" draggable="true" class="task-row" data-taskid="${task.id}">
                 <td><input type="checkbox" class="task-checkbox" data-id="${task.id}" ${canDelete ? '' : 'disabled'}></td>
-                <td>${task.id}</td><td>${task.createdAt}</td><td>${dbName}</td><td>${task.type || 'Прочее'}</td><td>${task.title || '—'}</td><td>${task.department}</td>
+                <td>${task.id}</td><td>${formatDate(task.createdAt)}</td><td>${dbName}</td><td>${task.type || 'Прочее'}</td><td>${task.title || '—'}</td><td>${task.department}</td>
                 <td>${task.author}</td><td>${task.assignee || '—'}</td><td>${task.office}</td><td>${task.phone}</td>
                 <td class="priority-${task.priority.toLowerCase()}">${task.priority}</td>
                 <td><span class="status-badge ${statusClass}">${task.status}</span></td>
-                <td>${task.deadline || '—'}</td>
+                <td>${formatDate(task.deadline)}</td>
                 <td style="${daysStyle}">${daysDisplay}</td>
                 <td>${task.report ? '✓' : ''}</td>
                 <td class="action-buttons">
                     <button class="icon-btn view-task" title="Просмотр"><i class="fas fa-eye"></i></button>
-                    <button class="icon-btn edit-task ${canEdit ? '' : 'icon-btn-disabled'}" title="${editHint}" data-id="${task.id}" ${canEdit ? '' : 'disabled'}><i class="fas fa-edit"></i></button>
                     <button class="icon-btn delete-task-btn ${canDelete ? '' : 'icon-btn-disabled'}" title="${deleteHint}" data-id="${task.id}" ${canDelete ? '' : 'disabled'}><i class="fas fa-trash"></i></button>
                 </td>
             </tr>`;
         });
-        tasksTbody.innerHTML = html || `<tr><td colspan="17" style="text-align:center; padding:40px;">Нет задач</td></tr>`;
+        tasksTbody.innerHTML = html || `<tr><td colspan="16" style="text-align:center; padding:40px;">Нет задач</td></tr>`;
+        
+        // Рендер карточек для мобильных
+        const cardsContainer = document.getElementById('tasksCardsContainer');
+        if (isMobile && cardsContainer) {
+            let cardsHtml = '';
+            filtered.forEach(task => {
+                const statusClass = getStatusClass(task.status);
+                const daysLeft = getDaysUntil(task.deadline);
+                let daysDisplay = '';
+                if (daysLeft !== null) {
+                    if (daysLeft < 0) daysDisplay = '<span style="color:var(--danger); font-weight:bold;">Просрочено</span>';
+                    else if (daysLeft <= 3) daysDisplay = `<span style="color:var(--warning);">${daysLeft} дн.</span>`;
+                    else daysDisplay = `${daysLeft} дн.`;
+                }
+                
+                cardsHtml += `
+                    <div class="task-card" data-taskid="${task.id}">
+                        <div class="task-card-header">
+                            <span class="task-card-id">#${task.id}</span>
+                            <span class="status-badge ${statusClass}">${task.status}</span>
+                        </div>
+                        <div class="task-card-title">${task.title || '—'}</div>
+                        <div class="task-card-meta">
+                            <span class="task-card-meta-item"><i class="fas fa-building"></i> ${task.department}</span>
+                            <span class="task-card-meta-item"><i class="fas fa-user"></i> ${task.author}</span>
+                            ${task.assignee ? `<span class="task-card-meta-item"><i class="fas fa-user-check"></i> ${task.assignee}</span>` : ''}
+                            <span class="task-card-meta-item"><i class="fas fa-calendar"></i> ${formatDate(task.deadline)}</span>
+                            ${daysDisplay ? `<span class="task-card-meta-item">${daysDisplay}</span>` : ''}
+                        </div>
+                        <div class="task-card-status">
+                            <span class="priority-${task.priority.toLowerCase()}" style="font-weight:600;">${task.priority}</span>
+                        </div>
+                        <div class="task-card-actions">
+                            <button class="btn btn-outline view-task-card" data-id="${task.id}">
+                                <i class="fas fa-eye"></i> Просмотр
+                            </button>
+                            ${canDelete ? `<button class="btn btn-danger delete-task-card" data-id="${task.id}">
+                                <i class="fas fa-trash"></i>
+                            </button>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            cardsContainer.innerHTML = cardsHtml || '<div style="text-align:center; padding:40px; color:var(--text-muted);">Нет задач</div>';
+            
+            // Обработчики для карточек
+            cardsContainer.querySelectorAll('.view-task-card').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    openTaskDetail(parseInt(btn.dataset.id), true);
+                });
+            });
+            
+            cardsContainer.querySelectorAll('.delete-task-card').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const taskId = parseInt(btn.dataset.id);
+                    const context = findTaskContext(taskId);
+                    if (!context || !canDeleteTask(context.task)) return;
+                    showConfirmModal('Удалить задачу?', 'Вы уверены?', async () => {
+                        const rowId = context?.task?.row_id || taskRowMap.get(taskId);
+                        const snapshot = [...context.db.tasks];
+                        context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
+                        refreshTaskRelatedUi();
+                        try {
+                            await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
+                            taskRowMap.delete(taskId);
+                            setSyncBanner('Изменения сохранены в SeaTable.');
+                            showToast('Задача удалена', 'success');
+                        } catch (error) {
+                            context.db.tasks = snapshot;
+                            refreshTaskRelatedUi();
+                            setSyncBanner(`Не удалось удалить задачу: ${error.message}`, true);
+                        }
+                    });
+                });
+            });
+            
+            // Клик по карточке
+            cardsContainer.querySelectorAll('.task-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    openTaskDetail(parseInt(this.dataset.taskid), false);
+                });
+            });
+        }
+        
+        // Показываем/скрываем таблицу и карточки
+        if (isMobile && cardsContainer) {
+            document.querySelector('.tasks-table').style.display = 'none';
+            cardsContainer.style.display = 'flex';
+        } else {
+            document.querySelector('.tasks-table').style.display = 'table';
+            const cardsContainer = document.getElementById('tasksCardsContainer');
+            if (cardsContainer) cardsContainer.style.display = 'none';
+        }
+        
         attachRowButtons();
         setupDragAndDrop();
         document.querySelectorAll('.task-row').forEach(row => {
             row.addEventListener('click', function(e) {
                 if (e.target.closest('button') || e.target.type === 'checkbox' || e.target.tagName === 'SELECT') return;
-                openTaskDetail(parseInt(this.dataset.taskid), true);
+                openTaskDetail(parseInt(this.dataset.taskid), false);
             });
         });
     }
@@ -653,37 +958,32 @@
 
     function attachRowButtons() {
         document.querySelectorAll('.view-task').forEach(btn => btn.addEventListener('click', e => {
+            e.stopPropagation();
             const row = e.target.closest('tr');
             openTaskDetail(parseInt(row.dataset.taskid), true);
         }));
-        document.querySelectorAll('.edit-task').forEach(btn => btn.addEventListener('click', e => {
-            if (btn.disabled) return;
-            const row = e.target.closest('tr');
-            openTaskDetail(parseInt(row.dataset.taskid), false);
-        }));
         document.querySelectorAll('.delete-task-btn').forEach(btn => btn.addEventListener('click', async e => {
+            e.stopPropagation();
             if (btn.disabled) return;
             const taskId = parseInt(btn.dataset.id);
             const context = findTaskContext(taskId);
             if (!context || !canDeleteTask(context.task)) return;
-            if (confirm('Удалить задачу?')) {
+            showConfirmModal('Удалить задачу?', 'Вы уверены?', async () => {
                 const rowId = context?.task?.row_id || taskRowMap.get(taskId);
                 const snapshot = [...context.db.tasks];
                 context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
                 refreshTaskRelatedUi();
                 try {
-                    await apiRequest(`${API_BASE}/${taskId}`, {
-                        method: 'DELETE',
-                        body: JSON.stringify({ row_id: rowId })
-                    });
+                    await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
                     taskRowMap.delete(taskId);
                     setSyncBanner('Изменения сохранены в SeaTable.');
+                    showToast('Задача удалена', 'success');
                 } catch (error) {
                     context.db.tasks = snapshot;
                     refreshTaskRelatedUi();
                     setSyncBanner(`Не удалось удалить задачу: ${error.message}`, true);
                 }
-            }
+            });
         }));
     }
 
@@ -776,15 +1076,15 @@
         const context = findTaskContext(taskId);
         if (!context) return false;
         const task = context.task;
-        if (!canEditTask(task)) { alert('Недостаточно прав для редактирования'); return false; }
+        if (!canEditTask(task)) { showToast('Недостаточно прав для редактирования', 'error'); return false; }
         const f = taskDetailForm;
         const nextStatus = f.status.value;
         if (!canTransitionStatus(task, nextStatus)) {
-            alert('Недопустимый переход статуса для вашей роли');
+            showToast('Недопустимый переход статуса для вашей роли', 'error');
             return false;
         }
         if (nextStatus === 'На проверке' && !f.report.value.trim()) {
-            alert('Для перевода на проверку заполните отчёт');
+            showToast('Для перевода на проверку заполните отчёт', 'warning');
             return false;
         }
         const prevStatus = task.status;
@@ -813,7 +1113,7 @@
         }
         const validationError = validateTaskShape(draft);
         if (validationError) {
-            alert(validationError);
+            showToast(validationError, 'error');
             return false;
         }
         const snapshot = JSON.parse(JSON.stringify(task));
@@ -825,18 +1125,15 @@
         try {
             const rowId = task.row_id || taskRowMap.get(task.id);
             const record = SeaTableAdapter.toRecord(task);
-            await apiRequest(`${API_BASE}/${task.id}`, {
-                method: 'PUT',
-                body: JSON.stringify({ ...record, row_id: rowId })
-            });
-            showToast(`Задача #${task.id} обновлена`);
+            await apiRequest(`${API_BASE}/${task.id}`, { method: 'PUT', body: JSON.stringify({ ...record, row_id: rowId }) });
+            showToast(`Задача #${task.id} обновлена`, 'success');
             setSyncBanner('Изменения сохранены в SeaTable.');
             return true;
         } catch (error) {
             Object.assign(task, snapshot);
             refreshTaskRelatedUi();
             setSyncBanner(`Не удалось обновить задачу: ${error.message}`, true);
-            alert(`Ошибка обновления: ${error.message}`);
+            showToast(`Ошибка обновления: ${error.message}`, 'error');
             return false;
         }
     }
@@ -850,19 +1147,18 @@
         if (!db) { quickTaskForm.dataset.submitting = 'false'; return false; }
 
         const dept = formData.get('department');
-        if (!dept) { alert('Выберите отдел'); quickTaskForm.dataset.submitting = 'false'; return false; }
+        if (!dept) { showToast('Выберите отдел', 'warning'); quickTaskForm.dataset.submitting = 'false'; return false; }
         const title = (formData.get('title') || '').trim();
-        if (!title) { alert('Введите тему заявки'); quickTaskForm.dataset.submitting = 'false'; return false; }
+        if (!title) { showToast('Введите тему заявки', 'warning'); quickTaskForm.dataset.submitting = 'false'; return false; }
 
         const description = formData.get('description').trim();
         if (!description) {
-            alert('Введите описание задачи');
+            showToast('Введите описание задачи', 'warning');
             quickTaskForm.dataset.submitting = 'false';
             return false;
         }
 
         const newTask = {
-            // SeaTable is the source of truth for id; server assigns it.
             createdAt: new Date().toISOString().split('T')[0],
             updatedAt: new Date().toISOString().split('T')[0],
             databaseId: dbId,
@@ -892,7 +1188,7 @@
         if (!newTask.deadline) newTask.deadline = getDateWithOffset(newTask.slaDays);
         const validationError = validateTaskShape(newTask);
         if (validationError) {
-            alert(validationError);
+            showToast(validationError, 'error');
             quickTaskForm.dataset.submitting = 'false';
             return false;
         }
@@ -901,10 +1197,7 @@
         try {
             db.tasks.push(newTask);
             refreshTaskRelatedUi();
-            const payload = await apiRequest(API_BASE, {
-                method: 'POST',
-                body: JSON.stringify(newTask)
-            });
+            const payload = await apiRequest(API_BASE, { method: 'POST', body: JSON.stringify(newTask) });
             if (payload?.task) {
                 Object.assign(newTask, payload.task);
                 if (payload.task.row_id) taskRowMap.set(newTask.id, payload.task.row_id);
@@ -914,60 +1207,51 @@
             }
             quickTaskForm.reset();
             document.querySelector('#quickTaskForm select[name="database"]').value = currentDatabaseId;
-            showToast(`Задача #${newTask.id} успешно создана`);
+            showToast(`Задача #${newTask.id} успешно создана`, 'success');
             setSyncBanner('Изменения сохранены в SeaTable.');
             return true;
         } catch (error) {
             db.tasks = db.tasks.filter(t => t.id !== newTask.id);
             refreshTaskRelatedUi();
             setSyncBanner(`Не удалось сохранить задачу: ${error.message}`, true);
-            alert(`Ошибка сохранения: ${error.message}`);
+            showToast(`Ошибка сохранения: ${error.message}`, 'error');
             return false;
         } finally {
             quickTaskForm.dataset.submitting = 'false';
         }
     }
 
-    // ==================== УДАЛЕНИЕ ВЫБРАННЫХ ====================
     async function deleteSelectedTasks() {
         const checkboxes = document.querySelectorAll('.task-checkbox:checked');
-        if (checkboxes.length === 0) { alert('Выберите задачи'); return; }
+        if (checkboxes.length === 0) { showToast('Выберите задачи', 'warning'); return; }
         const ids = Array.from(checkboxes).map(cb => parseInt(cb.dataset.id));
         const removableIds = ids.filter(id => {
             const context = findTaskContext(id);
             return context && canDeleteTask(context.task);
         });
-        if (!removableIds.length) { alert('Нет задач для удаления по вашим правам'); return; }
-        if (!confirm(`Удалить ${removableIds.length} задач(у)?`)) return;
-
-        const rowsToDelete = removableIds.map(id => {
-            const context = findTaskContext(id);
-            return {
-                id,
-                rowId: context?.task?.row_id || taskRowMap.get(id) || null
-            };
-        });
-
-        const snapshots = databases.map(db => ({ id: db.id, tasks: [...db.tasks] }));
-        databases.forEach(db => { db.tasks = db.tasks.filter(t => !removableIds.includes(t.id)); });
-        refreshTaskRelatedUi();
-        try {
-            for (const item of rowsToDelete) {
-                await apiRequest(`${API_BASE}/${item.id}`, {
-                    method: 'DELETE',
-                    body: JSON.stringify({ row_id: item.rowId })
-                });
-                taskRowMap.delete(item.id);
-            }
-            setSyncBanner('Изменения сохранены в SeaTable.');
-        } catch (error) {
-            snapshots.forEach(snapshot => {
-                const db = databases.find(item => item.id === snapshot.id);
-                if (db) db.tasks = snapshot.tasks;
+        if (!removableIds.length) { showToast('Нет задач для удаления по вашим правам', 'warning'); return; }
+        
+        showConfirmModal('Удаление задач', `Удалить ${removableIds.length} задач(у)?`, async () => {
+            const rowsToDelete = removableIds.map(id => {
+                const context = findTaskContext(id);
+                return { id, rowId: context?.task?.row_id || taskRowMap.get(id) || null };
             });
+            const snapshots = databases.map(db => ({ id: db.id, tasks: [...db.tasks] }));
+            databases.forEach(db => { db.tasks = db.tasks.filter(t => !removableIds.includes(t.id)); });
             refreshTaskRelatedUi();
-            setSyncBanner(`Ошибка пакетного удаления: ${error.message}`, true);
-        }
+            try {
+                for (const item of rowsToDelete) {
+                    await apiRequest(`${API_BASE}/${item.id}`, { method: 'DELETE', body: JSON.stringify({ row_id: item.rowId }) });
+                    taskRowMap.delete(item.id);
+                }
+                setSyncBanner('Изменения сохранены в SeaTable.');
+                showToast(`Удалено ${removableIds.length} задач(и)`, 'success');
+            } catch (error) {
+                snapshots.forEach(snapshot => { const db = databases.find(item => item.id === snapshot.id); if (db) db.tasks = snapshot.tasks; });
+                refreshTaskRelatedUi();
+                setSyncBanner(`Ошибка удаления: ${error.message}`, true);
+            }
+        });
     }
 
     // ==================== ФИЛЬТРЫ И ЭКСПОРТ ====================
@@ -994,12 +1278,13 @@
     });
     exportTasksBtn.addEventListener('click', () => {
         const filtered = filterTasks();
-        if (!filtered.length) { alert('Нет данных'); return; }
+        if (!filtered.length) { showToast('Нет данных для экспорта', 'warning'); return; }
         const headers = ['ID','Дата создания','База','Тип','Тема','Отдел','Описание','Автор','Исполнитель','Кабинет','Телефон','Приоритет','Статус','Срок','SLA(дней)','Отчёт','Причина отклонения'];
         const rows = filtered.map(t => [t.id, t.createdAt, databases.find(d=>d.id===t.databaseId)?.name||'', t.type || '', t.title || '', t.department, t.description, t.author, t.assignee || '', t.office, t.phone, t.priority, t.status, t.deadline, t.slaDays || '', t.report, t.rejectedReason || '']);
         const csv = headers.join(',') + '\n' + rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
         const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `tasks_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+        showToast('Экспорт выполнен', 'success');
     });
 
     // ==================== DRAG & DROP ====================
@@ -1159,25 +1444,10 @@
         saveAppSettings(nextSettings);
         document.querySelector('.logo').textContent = nextSettings.orgName + ' · Планировщик';
         applyUiSettings(nextSettings);
-        alert('Настройки сохранены');
+        showToast('Настройки сохранены', 'success');
     });
 
     // ==================== РАЗДЕЛЫ ====================
-    function renderEmployees() {
-        document.getElementById('employeesTableBody').innerHTML = employeesData.map((e, index) => 
-            `<tr>
-                <td>${e.name}</td><td>${e.position}</td><td>${e.department}</td><td>${e.phone}</td><td>${e.email}</td>
-                <td><button class="icon-btn delete-employee" data-index="${index}" title="Удалить"><i class="fas fa-trash"></i></button></td>
-            </tr>`
-        ).join('');
-        document.querySelectorAll('.delete-employee').forEach(btn => btn.addEventListener('click', function() {
-            const idx = parseInt(this.dataset.index);
-            employeesData.splice(idx, 1);
-            renderEmployees();
-            savePersistedData();
-        }));
-    }
-
     function renderDepartments() {
         document.getElementById('departmentsTableBody').innerHTML = departmentsData.map((d, index) => 
             `<tr>
@@ -1197,6 +1467,77 @@
             renderBasesList();
             savePersistedData();
         }));
+    }
+
+    // ==================== ПОЛЬЗОВАТЕЛИ ====================
+    function renderUsers() {
+        const tbody = document.getElementById('usersTableBody');
+        if (!tbody || !currentUser || currentUser.role !== 'admin') return;
+        
+        tbody.innerHTML = users.map(u => 
+            `<tr>
+                <td>${sanitizeHTML(u.username)}</td>
+                <td>${sanitizeHTML(u.fullName)}</td>
+                <td>${sanitizeHTML(u.role)}</td>
+                <td>${sanitizeHTML(u.department || '—')}</td>
+                <td>${sanitizeHTML(u.email || '—')}</td>
+                <td>${sanitizeHTML(u.phone || '—')}</td>
+                <td>
+                    ${u.username !== 'admin' 
+                        ? `<button class="icon-btn edit-user-btn" data-username="${sanitizeHTML(u.username)}" title="Редактировать"><i class="fas fa-edit"></i></button>
+                           <button class="icon-btn delete-user-btn" data-username="${sanitizeHTML(u.username)}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>` 
+                        : '<span style="color:var(--primary); font-size:12px;">Основной</span>'}
+                </td>
+            </tr>`
+        ).join('');
+        
+        // Редактирование
+        document.querySelectorAll('.edit-user-btn').forEach(btn => btn.addEventListener('click', function() {
+            const username = this.dataset.username;
+            openEditUserModal(username);
+        }));
+        
+        // Удаление
+        document.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', function() {
+            const username = this.dataset.username;
+            showConfirmModal('Удалить пользователя?', `Пользователь "${username}" будет удалён. Это действие нельзя отменить.`, () => {
+                const result = deleteUser(username);
+                if (result.success) {
+                    renderUsers();
+                    showToast('Пользователь удалён', 'success');
+                } else {
+                    showToast(result.error, 'error');
+                }
+            });
+        }));
+    }
+
+    // Открытие модального окна редактирования
+    async function openEditUserModal(username) {
+        const user = findUserByUsername(username);
+        if (!user) return;
+        
+        const editModal = document.getElementById('editUserModal');
+        const editForm = document.getElementById('editUserForm');
+        
+        // Заполняем форму
+        document.getElementById('editUsername').value = user.username;
+        document.getElementById('editFullName').value = user.fullName;
+        document.getElementById('editPosition').value = user.position || '';
+        document.getElementById('editDepartment').value = user.department || '';
+        document.getElementById('editEmail').value = user.email || '';
+        document.getElementById('editPhone').value = user.phone || '';
+        document.getElementById('editPassword').value = '';
+        
+        // Сохраняем оригинальный логин для поиска
+        editForm.dataset.originalUsername = username;
+        
+        // Заполняем отделы
+        const deptSelect = document.getElementById('editDepartment');
+        deptSelect.innerHTML = '<option value="">Выберите отдел</option>' + 
+            FULL_DEPARTMENTS.map(dept => `<option value="${dept}">${dept}</option>`).join('');
+        
+        editModal.classList.add('show');
     }
 
     // <-- ВАЖНО: функция renderBasesList объявлена ДО вызовов
@@ -1248,7 +1589,7 @@
         if (inSlaEl) inSlaEl.textContent = inSla;
         if (outSlaEl) outSlaEl.textContent = outSla;
     }
-
+        
     function renderDetailedStats() {
         const tasks = getCurrentDatabaseTasks();
         const deptCounts = {};
@@ -1347,41 +1688,146 @@
         }
     }
 
-    // ==================== ТОСТЫ ====================
-    function showToast(message) {
-        if (!toastContainer) return;
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.textContent = message;
-        toastContainer.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-    }
-
-    // ==================== ДОБАВЛЕНИЕ ====================
-    document.getElementById('addEmployeeBtn')?.addEventListener('click', () => {
-        const name = prompt('ФИО сотрудника'); if (!name) return;
-        const position = prompt('Должность') || '';
-        const department = prompt('Отдел') || '';
-        const phone = prompt('Телефон') || '';
-        const email = prompt('Email') || '';
-        employeesData.push({ name, position, department, phone, email });
-        if (department && !FULL_DEPARTMENTS.includes(department)) {
-            FULL_DEPARTMENTS.push(department);
-            populateDepartmentSelects();
-        }
-        renderEmployees();
-        savePersistedData();
-    });
-
+    // ==================== НАВИГАЦИЯ ====================
+    // Добавление отдела (модальное окно)
+    const addDepartmentForm = document.getElementById('addDepartmentForm');
+    const addDepartmentModal = document.getElementById('addDepartmentModal');
+    const addDeptHeadSelect = document.getElementById('addDeptHead');
+    
     document.getElementById('addDepartmentBtn')?.addEventListener('click', () => {
-        const name = prompt('Название отдела'); if (!name) return;
-        const head = prompt('Руководитель') || '';
-        const count = parseInt(prompt('Количество сотрудников')) || 0;
+        if (!currentUser || currentUser.role !== 'admin') return;
+        addDepartmentForm.reset();
+        
+        // Заполняем список руководителей из пользователей
+        if (addDeptHeadSelect) {
+            addDeptHeadSelect.innerHTML = '<option value="">Выберите руководителя</option>' + 
+                users
+                    .filter(u => u.role === 'admin' || u.role === 'director')
+                    .map(u => `<option value="${sanitizeHTML(u.fullName)}">${sanitizeHTML(u.fullName)} (${u.role === 'admin' ? 'Админ' : 'Руководитель'})</option>`)
+                    .join('');
+        }
+        
+        addDepartmentModal.classList.add('show');
+    });
+    
+    addDepartmentForm?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!currentUser || currentUser.role !== 'admin') return;
+        
+        const formData = new FormData(addDepartmentForm);
+        const name = (formData.get('name') || '').trim();
+        const head = (formData.get('head') || '').trim();
+        const count = parseInt(formData.get('count') || '0');
+        
+        if (!name) {
+            showToast('Введите название отдела', 'error');
+            return;
+        }
+        
+        // Проверка на дубликат
+        if (departmentsData.some(d => d.name.toLowerCase() === name.toLowerCase())) {
+            showToast('Отдел с таким названием уже существует', 'error');
+            return;
+        }
+        
         departmentsData.push({ name, head, count });
         FULL_DEPARTMENTS = departmentsData.map(d => d.name);
         populateDepartmentSelects();
         renderDepartments();
+        addDepartmentModal.classList.remove('show');
         savePersistedData();
+        showToast(`Отдел "${name}" успешно создан`, 'success');
+    });
+
+    // Добавление пользователя (admin)
+    const addUserForm = document.getElementById('addUserForm');
+    const addUserModal = document.getElementById('addUserModal');
+    const addUserDepartment = document.getElementById('addUserDepartment');
+    
+    document.getElementById('addUserBtn')?.addEventListener('click', () => {
+        if (!currentUser || currentUser.role !== 'admin') return;
+        addUserForm.reset();
+        // Заполняем отделы
+        if (addUserDepartment) {
+            addUserDepartment.innerHTML = '<option value="">Выберите отдел</option>' + 
+                FULL_DEPARTMENTS.map(dept => `<option value="${dept}">${dept}</option>`).join('');
+        }
+        addUserModal.classList.add('show');
+    });
+        
+    addUserForm?.addEventListener('submit', async e => {
+        e.preventDefault();
+        if (!currentUser || currentUser.role !== 'admin') return;
+        
+        const formData = new FormData(addUserForm);
+        const username = (formData.get('username') || '').trim();
+        const password = formData.get('password') || '';
+        const fullName = (formData.get('fullName') || '').trim();
+        const department = (formData.get('department') || '').trim();
+        const position = (formData.get('position') || '').trim();
+        const email = (formData.get('email') || '').trim();
+        const phone = (formData.get('phone') || '').trim();
+        
+        if (!username || !password || !fullName) {
+            showToast('Заполните обязательные поля (логин, пароль, ФИО)', 'error');
+            return;
+        }
+        if (password.length < 6) {
+            showToast('Пароль должен быть не менее 6 символов', 'error');
+            return;
+        }
+        
+        const result = await addUser({ username, password, fullName, department, position, email, phone });
+        if (result.success) {
+            addUserModal.classList.remove('show');
+            renderUsers();
+            populateDepartmentSelects();
+            showToast(`Пользователь "${username}" успешно создан`, 'success');
+        } else {
+            showToast(result.error, 'error');
+        }
+    });
+
+    // Редактирование пользователя
+    const editUserForm = document.getElementById('editUserForm');
+    const editUserModal = document.getElementById('editUserModal');
+    
+    // Закрытие модального окна отдела при клике на крестик
+    document.querySelectorAll('.close-modal').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const modal = this.closest('.modal');
+            if (modal) modal.classList.remove('show');
+        });
+    });
+    
+    editUserForm?.addEventListener('submit', async e => {
+        e.preventDefault();
+        if (!currentUser || currentUser.role !== 'admin') return;
+        
+        const originalUsername = editUserForm.dataset.originalUsername;
+        const formData = new FormData(editUserForm);
+        const username = (formData.get('username') || '').trim();
+        const password = formData.get('password') || '';
+        const fullName = (formData.get('fullName') || '').trim();
+        const department = (formData.get('department') || '').trim();
+        const position = (formData.get('position') || '').trim();
+        const email = (formData.get('email') || '').trim();
+        const phone = (formData.get('phone') || '').trim();
+        
+        if (!username || !fullName) {
+            showToast('Заполните обязательные поля (логин, ФИО)', 'error');
+            return;
+        }
+        
+        const result = await editUser(originalUsername, { username, password, fullName, department, position, email, phone });
+        if (result.success) {
+            editUserModal.classList.remove('show');
+            renderUsers();
+            populateDepartmentSelects();
+            showToast('Данные пользователя обновлены', 'success');
+        } else {
+            showToast(result.error, 'error');
+        }
     });
 
     // ==================== ГЛАВНЫЕ ОБРАБОТЧИКИ ====================
@@ -1417,36 +1863,33 @@
         });
         roleDisplay.style.cursor = 'pointer';
         roleDisplay.addEventListener('click', () => {
-            if (confirm('Выйти из системы?')) {
-                logoutUser();
-            }
+            showConfirmModal('Выход из системы', 'Выйти из системы?', () => { logoutUser(); });
         });
         selectAllTasks.addEventListener('change', e => {
             document.querySelectorAll('.task-checkbox').forEach(cb => cb.checked = e.target.checked);
         });
         deleteSelectedBtn.addEventListener('click', () => { void deleteSelectedTasks(); });
-        document.getElementById('deleteTaskBtn')?.addEventListener('click', async () => {
+        document.getElementById('deleteTaskBtn')?.addEventListener('click', () => {
             const taskId = parseInt(document.getElementById('detailTaskIndex').value);
             const context = findTaskContext(taskId);
             if (!context || !canDeleteTask(context.task)) return;
-            if (!confirm('Удалить задачу?')) return;
-            const rowId = context.task.row_id || taskRowMap.get(taskId);
-            const snapshot = [...context.db.tasks];
-            context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
-            refreshTaskRelatedUi();
-            taskDetailModal.classList.remove('show');
-            try {
-                await apiRequest(`${API_BASE}/${taskId}`, {
-                    method: 'DELETE',
-                    body: JSON.stringify({ row_id: rowId })
-                });
-                taskRowMap.delete(taskId);
-                setSyncBanner('Изменения сохранены в SeaTable.');
-            } catch (error) {
-                context.db.tasks = snapshot;
+            showConfirmModal('Удалить задачу?', 'Вы уверены?', async () => {
+                const rowId = context.task.row_id || taskRowMap.get(taskId);
+                const snapshot = [...context.db.tasks];
+                context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
                 refreshTaskRelatedUi();
-                setSyncBanner(`Не удалось удалить задачу: ${error.message}`, true);
-            }
+                taskDetailModal.classList.remove('show');
+                try {
+                    await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
+                    taskRowMap.delete(taskId);
+                    setSyncBanner('Изменения сохранены в SeaTable.');
+                    showToast('Задача удалена', 'success');
+                } catch (error) {
+                    context.db.tasks = snapshot;
+                    refreshTaskRelatedUi();
+                    setSyncBanner(`Не удалось удалить задачу: ${error.message}`, true);
+                }
+            });
         });
         quickFilterButtons.forEach(btn => btn.addEventListener('click', () => {
             activeQuickFilter = btn.dataset.quickFilter || '';
@@ -1544,6 +1987,34 @@
         });
         window.addEventListener('click', e => {
             if (e.target.classList.contains('modal')) e.target.classList.remove('show');
+        });
+        
+        // Горячие клавиши
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show'));
+            }
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                const detailModal = document.getElementById('taskDetailModal');
+                if (detailModal.classList.contains('show')) {
+                    taskDetailForm.dispatchEvent(new Event('submit'));
+                }
+            }
+        });
+        
+        // Сброс таймера сессии при активности пользователя
+        ['mousemove', 'keydown', 'click', 'scroll'].forEach(event => {
+            document.addEventListener(event, () => { if (currentUser) resetSessionTimer(); }, true);
+        });
+        
+        // Перерисовка при изменении размера окна
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                renderTasks();
+            }, 250);
         });
     }
 })();
