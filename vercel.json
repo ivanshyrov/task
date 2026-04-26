@@ -20,8 +20,12 @@
       "dest": "/api/tasks/index.js"
     },
     {
-      "src": "/api/(.*)",
+      "src": "/api/tasks/(.*)",
       "dest": "/api/tasks/index.js"
+    },
+    {
+      "src": "/api/users/(.*)",
+      "dest": "/api/users/index.js"
     },
     {
       "src": "/(.*)",
