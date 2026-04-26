@@ -18,11 +18,5 @@
       "src": "/api/(.*)",
       "dest": "/api/tasks/index.js"
     }
-  ],
-  "env": {
-    "SEATABLE_SERVER": "@seatable_server",
-    "SEATABLE_API_TOKEN": "@seatable_api_token",
-    "SEATABLE_BASE_UUID": "@seatable_base_uuid",
-    "SEATABLE_USERS_TABLE": "Users"
-  }
+  ]
 }

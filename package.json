@@ -5,13 +5,14 @@
   "main": "api/tasks/index.js",
   "scripts": {
     "start": "node api/tasks/index.js",
-    "dev": "node --watch api/tasks/index.js"
+    "dev": "node --watch api/tasks/index.js",
+    "build": "echo 'No build step required'"
   },
   "dependencies": {
     "node-fetch": "^2.7.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
   },
   "author": "IT-SP",
   "license": "MIT"
