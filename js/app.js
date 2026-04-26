@@ -881,7 +881,7 @@
         
         // Рендер карточек для мобильных
         const cardsContainer = document.getElementById('tasksCardsContainer');
-        if (isMobile && cardsContainer) {
+        if (cardsContainer) {
             let cardsHtml = '';
             filtered.forEach(task => {
                 const statusClass = getStatusClass(task.status);
@@ -922,66 +922,81 @@
                 `;
             });
             cardsContainer.innerHTML = cardsHtml || '<div style="text-align:center; padding:40px; color:var(--text-muted);">Нет задач</div>';
-            
-            // Обработчики для карточек
-            cardsContainer.querySelectorAll('.view-task-card').forEach(btn => {
-                btn.addEventListener('click', e => {
-                    e.stopPropagation();
-                    openTaskDetail(parseInt(btn.dataset.id), true);
-                });
-            });
-            
-            cardsContainer.querySelectorAll('.delete-task-card').forEach(btn => {
-                btn.addEventListener('click', e => {
-                    e.stopPropagation();
-                    const taskId = parseInt(btn.dataset.id);
-                    const context = findTaskContext(taskId);
-                    if (!context || !canDeleteTask(context.task)) return;
-                    showConfirmModal('Удалить задачу?', 'Вы уверены?', async () => {
-                        const rowId = context?.task?.row_id || taskRowMap.get(taskId);
-                        const snapshot = [...context.db.tasks];
-                        context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
-                        refreshTaskRelatedUi();
-                        try {
-                            await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
-                            taskRowMap.delete(taskId);
-                            setSyncBanner('Изменения сохранены в SeaTable.');
-                            showToast('Задача удалена', 'success');
-                        } catch (error) {
-                            context.db.tasks = snapshot;
-                            refreshTaskRelatedUi();
-                            setSyncBanner(`Не удалось удалить задачу: ${error.message}`, true);
-                        }
-                    });
-                });
-            });
-            
-            // Клик по карточке
-            cardsContainer.querySelectorAll('.task-card').forEach(card => {
-                card.addEventListener('click', function() {
-                    openTaskDetail(parseInt(this.dataset.taskid), false);
-                });
-            });
         }
-        
+            
         // Показываем/скрываем таблицу и карточки
         if (isMobile && cardsContainer) {
             document.querySelector('.tasks-table').style.display = 'none';
             cardsContainer.style.display = 'flex';
         } else {
             document.querySelector('.tasks-table').style.display = 'table';
-            const cardsContainer = document.getElementById('tasksCardsContainer');
             if (cardsContainer) cardsContainer.style.display = 'none';
         }
         
+        // Перевешиваем все обработчики
         attachRowButtons();
+        attachCardButtons();
         setupDragAndDrop();
-        document.querySelectorAll('.task-row').forEach(row => {
-            row.addEventListener('click', function(e) {
-                if (e.target.closest('button') || e.target.type === 'checkbox' || e.target.tagName === 'SELECT') return;
-                openTaskDetail(parseInt(this.dataset.taskid), false);
-            });
+        attachTaskRowClicks();
+    }
+
+    function attachCardButtons() {
+        const cardsContainer = document.getElementById('tasksCardsContainer');
+        if (!cardsContainer) return;
+        
+        // View buttons
+        cardsContainer.querySelectorAll('.view-task-card').forEach(btn => {
+            btn.removeEventListener('click', handleViewTaskCard);
+            btn.addEventListener('click', handleViewTaskCard);
         });
+        
+        // Delete buttons
+        cardsContainer.querySelectorAll('.delete-task-card').forEach(btn => {
+            btn.removeEventListener('click', handleDeleteTaskCard);
+            btn.addEventListener('click', handleDeleteTaskCard);
+        });
+        
+        // Card clicks
+        cardsContainer.querySelectorAll('.task-card').forEach(card => {
+            card.removeEventListener('click', handleTaskCardClick);
+            card.addEventListener('click', handleTaskCardClick);
+        });
+    }
+
+    function handleViewTaskCard(e) {
+        e.stopPropagation();
+        openTaskDetail(parseInt(e.target.closest('button').dataset.id), true);
+    }
+
+    async function handleDeleteTaskCard(e) {
+        e.stopPropagation();
+        const btn = e.target.closest('button');
+        const taskId = parseInt(btn.dataset.id);
+        const context = findTaskContext(taskId);
+        if (!context || !canDeleteTask(context.task)) return;
+        
+        showConfirmModal('Удалить задачу?', 'Вы уверены?', async () => {
+            const rowId = context?.task?.row_id || taskRowMap.get(taskId);
+            const snapshot = [...context.db.tasks];
+            context.db.tasks = context.db.tasks.filter(t => t.id !== taskId);
+            refreshTaskRelatedUi();
+            try {
+                await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
+                taskRowMap.delete(taskId);
+                setSyncBanner('Изменения сохранены в SeaTable.');
+                showToast('Задача удалена', 'success');
+            } catch (error) {
+                context.db.tasks = snapshot;
+                refreshTaskRelatedUi();
+                setSyncBanner(`Не удалось удалить задачу: ${error.message}`, true);
+            }
+        });
+    }
+
+    function handleTaskCardClick(e) {
+        const card = e.target.closest('.task-card');
+        if (!card) return;
+        openTaskDetail(parseInt(card.dataset.taskid), false);
     }
 
     function getStatusClass(s) {
@@ -1025,6 +1040,20 @@
                 }
             });
         }));
+    }
+
+    function attachTaskRowClicks() {
+        document.querySelectorAll('.task-row').forEach(row => {
+            row.removeEventListener('click', handleTaskRowClick);
+            row.addEventListener('click', handleTaskRowClick);
+        });
+    }
+
+    function handleTaskRowClick(e) {
+        if (e.target.closest('button') || e.target.type === 'checkbox' || e.target.tagName === 'SELECT') return;
+        const row = e.target.closest('tr');
+        if (!row) return;
+        openTaskDetail(parseInt(row.dataset.taskid), false);
     }
 
     function openTaskDetail(taskId, readOnly) {

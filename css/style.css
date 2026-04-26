@@ -556,7 +556,7 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
     
     /* ===== КАРТОЧКИ ЗАДАЧ (МОБИЛЬНЫЕ) ===== */
     .cards-container {
-        display: flex !important;
+        display: flex;
         flex-direction: column;
         gap: 12px;
     }
