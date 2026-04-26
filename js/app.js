@@ -109,13 +109,14 @@
                     body: JSON.stringify({ user })
                 });
             } else if (action === 'update') {
-                await apiRequest(`${API_USERS}/${user.username}`, {
+                await apiRequest(`${API_USERS}?username=${encodeURIComponent(user.username)}`, {
                     method: 'PUT',
-                    body: JSON.stringify({ user })
+                    body: JSON.stringify({ user, username: user.username })
                 });
             } else if (action === 'delete') {
-                await apiRequest(`${API_USERS}/${user.username}`, {
-                    method: 'DELETE'
+                await apiRequest(`${API_USERS}?username=${encodeURIComponent(user.username)}`, {
+                    method: 'DELETE',
+                    body: JSON.stringify({ username: user.username })
                 });
             }
         } catch (error) {

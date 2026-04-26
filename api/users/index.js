@@ -138,8 +138,13 @@ module.exports = async (req, res) => {
 
     // PUT - обновить пользователя
     if (req.method === "PUT") {
-      const { username } = req.params;
+      // Vercel может передавать username в query или body
+      const username = req.query?.username || req.body?.username;
       const { user } = req.body;
+
+      if (!username) {
+        return res.status(400).json({ error: "Требуется username" });
+      }
 
       // Находим пользователя
       let existingUser = null;
@@ -200,7 +205,12 @@ module.exports = async (req, res) => {
 
     // DELETE - удалить пользователя
     if (req.method === "DELETE") {
-      const { username } = req.params;
+      // Vercel может передавать username в query
+      const username = req.query?.username || req.body?.username;
+
+      if (!username) {
+        return res.status(400).json({ error: "Требуется username" });
+      }
 
       // Находим row_id
       let rowId = null;
