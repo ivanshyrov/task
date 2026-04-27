@@ -31,6 +31,7 @@
 
     // ==================== УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ====================
     const USERS_STORAGE_KEY = 'taskPlannerUsersV1';
+    const ACTIVE_SESSION_KEY = 'taskPlannerActiveUser';
     const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 минут
     let sessionTimer = null;
     let lastSyncAttemptAt = 0;
@@ -541,6 +542,7 @@
     function logoutUser() {
         if (sessionTimer) clearTimeout(sessionTimer);
         currentUser = null;
+        localStorage.removeItem(ACTIVE_SESSION_KEY);
         app.style.display = 'none';
         loginScreen.style.display = 'flex';
         sidebar.classList.remove('open');
@@ -706,19 +708,8 @@
     }
 
     function getAssignableEmployees() {
-        // После перехода на "направления техподдержки" в задачах нельзя фильтровать исполнителей
-        // по task.department, иначе список часто пустой.
-        const fromUsers = users
-            .filter(u => (u.role === 'employee' || u.role === 'director'))
-            .map(u => u.fullName)
-            .filter(Boolean);
-
-        // Добавляем legacy-список для обратной совместимости.
-        const fromEmployees = employeesData
-            .map(e => e.name)
-            .filter(Boolean);
-
-        return [...new Set([...fromUsers, ...fromEmployees])].sort();
+        // Исполнителем может быть любой актуальный пользователь системы независимо от роли.
+        return [...new Set(users.map(u => u.fullName).filter(Boolean))].sort();
     }
 
     function findTaskContext(taskId) {
@@ -812,6 +803,7 @@
         const user = users.find(u => u.username === username && u.passwordHash === passwordHash);
         if (!user) { showToast('Неверный логин или пароль', 'error'); return; }
         currentUser = { ...user };
+        localStorage.setItem(ACTIVE_SESSION_KEY, currentUser.username);
         applyRole(currentUser.role);
         loginScreen.style.display = 'none';
         app.style.display = 'flex';
@@ -2299,4 +2291,23 @@
             }, 250);
         });
     }
+
+    async function bootstrapSession() {
+        await initUsers();
+        const lastUsername = localStorage.getItem(ACTIVE_SESSION_KEY);
+        if (!lastUsername) return;
+        const savedUser = findUserByUsername(lastUsername);
+        if (!savedUser) {
+            localStorage.removeItem(ACTIVE_SESSION_KEY);
+            return;
+        }
+        currentUser = { ...savedUser };
+        applyRole(currentUser.role);
+        loginScreen.style.display = 'none';
+        app.style.display = 'flex';
+        initApp();
+        resetSessionTimer();
+    }
+
+    void bootstrapSession();
 })();
