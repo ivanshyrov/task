@@ -415,6 +415,7 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
     font-weight: 600;
     margin: 8px 0;
     color: var(--text-main);
+    overflow-wrap: anywhere;
 }
 
 .task-card-meta {
@@ -430,6 +431,7 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
     background: var(--bg-light);
     padding: 4px 8px;
     border-radius: 6px;
+    overflow-wrap: anywhere;
 }
 
 .task-card-status {
@@ -449,6 +451,7 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
     justify-content: center;
     padding: 10px;
     font-size: 0.85rem;
+    min-width: 0;
 }
 
 /* ===== АДАПТИВНОСТЬ: МОБИЛЬНЫЕ УСТРОЙСТВА ===== */
@@ -570,6 +573,15 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
         flex-wrap: wrap;
         gap: 8px;
     }
+
+    .tasks-actions-panel .actions {
+        width: 100%;
+    }
+
+    .tasks-actions-panel .actions .btn {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
     
     .btn {
         padding: 8px 14px;
@@ -610,6 +622,24 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
         padding: 6px 12px;
         font-size: 0.8rem;
         white-space: nowrap;
+    }
+
+    .quick-filters-row {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+    }
+
+    .quick-filters-row::-webkit-scrollbar,
+    .tasks-toolbar::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .quick-filters-row::-webkit-scrollbar-thumb,
+    .tasks-toolbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 999px;
     }
     
     /* ===== ТАБЛИЦА ЗАДАЧ ===== */
@@ -733,6 +763,16 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
         justify-content: center;
         padding: 12px;
     }
+
+    .comment-add-row {
+        flex-direction: column;
+    }
+
+    .comment-add-row textarea,
+    .comment-add-row .btn,
+    .comment-add-row input[type="file"] {
+        width: 100%;
+    }
     
     /* ===== ПРОФИЛЬ ===== */
     .profile-avatar i {
@@ -773,6 +813,15 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
         flex-direction: column;
         align-items: flex-start;
         gap: 8px;
+    }
+
+    .tasks-footer-actions {
+        text-align: initial !important;
+    }
+
+    .tasks-footer-actions .btn {
+        width: 100%;
+        justify-content: center;
     }
     
     .toggle-switch {
@@ -1101,6 +1150,43 @@ body.compact-mode .tasks-table td,
 body.compact-mode .data-table th,
 body.compact-mode .data-table td {
     padding: 6px 8px;
+}
+
+body.compact-mode .tasks-table,
+body.compact-mode .data-table {
+    font-size: 0.78rem;
+}
+
+body.compact-mode .btn {
+    padding: 6px 12px;
+}
+
+body.compact-mode .btn-small {
+    padding: 5px 10px;
+    height: 32px;
+    font-size: 0.8rem;
+}
+
+body.compact-mode .filter-select,
+body.compact-mode .filter-search,
+body.compact-mode .filter-date,
+body.compact-mode .form-group input,
+body.compact-mode .form-group select,
+body.compact-mode .form-group textarea {
+    padding: 7px 10px;
+    font-size: 0.88rem;
+}
+
+body.compact-mode .tasks-actions-panel,
+body.compact-mode .stat-card,
+body.compact-mode .stats-panel,
+body.compact-mode .modal form,
+body.compact-mode .profile-body {
+    padding: 16px;
+}
+
+body.compact-mode .form-group {
+    margin-bottom: 12px;
 }
 
 /* ===== ИНДИКАТОР ЗАГРУЗКИ В БАННЕРЕ ===== */

@@ -216,6 +216,11 @@
     }
 
     function showToast(message, type = 'success') {
+        const settings = getAppSettings();
+        const notificationsEnabled = Boolean(settings.desktopNotifications);
+        if (!notificationsEnabled && type !== 'error' && type !== 'warning') {
+            return;
+        }
         const container = document.getElementById('toastContainer');
         if (!container) return;
         const toast = document.createElement('div');
@@ -472,6 +477,7 @@
     function applyUiSettings(settings) {
         document.body.classList.toggle('theme-dark', settings.theme === 'dark');
         document.body.classList.toggle('compact-mode', Boolean(settings.compactMode));
+        document.body.classList.toggle('notifications-muted', !Boolean(settings.desktopNotifications));
     }
 
     function updateDefaultViewOptions() {
@@ -930,7 +936,7 @@
         }
             
         // Показываем/скрываем таблицу и карточки через классы
-        const tableWrapper = document.querySelector('.table-wrapper');
+        const tableWrapper = document.getElementById('tasksTable')?.closest('.table-wrapper');
         if (isMobile && cardsContainer) {
             if (tableWrapper) tableWrapper.style.display = 'none';
             cardsContainer.classList.add('show-mobile');
@@ -1429,13 +1435,19 @@
         profileModal.classList.add('show');
     });
 
-    document.getElementById('profileForm').addEventListener('submit', e => {
+    document.getElementById('profileForm').addEventListener('submit', async e => {
         e.preventDefault();
+        if (!currentUser) return;
+
         const oldName = currentUser.fullName;
-        currentUser.fullName = document.getElementById('profileFullName').value;
-        currentUser.position = document.getElementById('profilePosition').value;
-        currentUser.email = document.getElementById('profileEmail').value;
-        currentUser.phone = document.getElementById('profilePhone').value;
+        currentUser.fullName = document.getElementById('profileFullName').value.trim();
+        currentUser.position = document.getElementById('profilePosition').value.trim();
+        currentUser.email = document.getElementById('profileEmail').value.trim();
+        currentUser.phone = document.getElementById('profilePhone').value.trim();
+
+        saveUsers();
+        renderUsers();
+
         if (oldName !== currentUser.fullName) {
             const toUpdate = [];
             databases.forEach(db => db.tasks.forEach(t => {
@@ -1464,6 +1476,12 @@
                 setSyncBanner('Изменения сохранены в SeaTable.');
             })();
         }
+        try {
+            await syncUserToSeaTable(currentUser, 'update');
+        } catch (err) {
+            console.error('Не удалось синхронизировать профиль с SeaTable', err);
+        }
+        showToast('Профиль сохранён', 'success');
         profileModal.classList.remove('show');
     });
 
