@@ -705,17 +705,19 @@
         return false;
     }
 
-    function getAssignableEmployees(department) {
-        // Получаем всех пользователей с ролью employee или director
+    function getAssignableEmployees() {
+        // После перехода на "направления техподдержки" в задачах нельзя фильтровать исполнителей
+        // по task.department, иначе список часто пустой.
         const fromUsers = users
-            .filter(u => (u.role === 'employee' || u.role === 'director') && (!department || u.department === department))
-            .map(u => u.fullName);
-        
-        // Добавляем сотрудников из старого формата (для обратной совместимости)
+            .filter(u => (u.role === 'employee' || u.role === 'director'))
+            .map(u => u.fullName)
+            .filter(Boolean);
+
+        // Добавляем legacy-список для обратной совместимости.
         const fromEmployees = employeesData
-            .filter(e => !department || e.department === department)
-            .map(e => e.name);
-        
+            .map(e => e.name)
+            .filter(Boolean);
+
         return [...new Set([...fromUsers, ...fromEmployees])].sort();
     }
 
@@ -1227,7 +1229,7 @@
         f.database.value = databases.find(d => d.id === task.databaseId)?.name || '';
         f.department.value = task.department;
         f.author.value = task.author;
-        const assigneeOptions = [''].concat(getAssignableEmployees(task.department));
+        const assigneeOptions = [''].concat(getAssignableEmployees());
         f.assignee.innerHTML = assigneeOptions.map(name => `<option value="${name}">${name || 'Не назначен'}</option>`).join('');
         f.assignee.value = task.assignee || '';
         f.office.value = task.office;
