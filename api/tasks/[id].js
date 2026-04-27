@@ -9,6 +9,7 @@ const {
 } = require("../_seatable");
 
 const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
+const VIEW_NAME = process.env.SEATABLE_VIEW_NAME || "Default";
 
 module.exports = async (req, res) => {
   const debug = {
@@ -35,13 +36,13 @@ module.exports = async (req, res) => {
     const baseUrl = getRowsBaseUrl(accessMeta);
     const isV2 = baseUrl.includes("/api/v2/");
 
-    async function sqlQueryOneById() {
+    async function sqlQueryOneById(selectClause = "_id, id") {
       if (!isV2) return null;
       if (!Number.isFinite(numericId)) return null;
       debug.sqlUsed = true;
       const sqlUrl = `${baseUrl}/sql/`;
       const payload = {
-        sql: `SELECT _id, id FROM \`${TABLE_NAME}\` WHERE \`id\` = ? LIMIT 1`,
+        sql: `SELECT ${selectClause} FROM \`${TABLE_NAME}\` WHERE \`id\` = ? LIMIT 1`,
         convert_keys: true,
         parameters: [numericId],
       };
@@ -74,9 +75,26 @@ module.exports = async (req, res) => {
       return row?._id || null;
     }
 
+    async function fetchTaskByIdFull() {
+      if (isV2) {
+        return sqlQueryOneById("*");
+      }
+
+      const rowsUrl = `${baseUrl}/rows/?table_name=${encodeURIComponent(TABLE_NAME)}&view_name=${encodeURIComponent(VIEW_NAME)}`;
+      const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
+      const list =
+        (Array.isArray(rows) ? rows : null) ||
+        rows?.rows ||
+        rows?.results ||
+        rows?.data?.rows ||
+        rows?.data?.results ||
+        [];
+      return Array.isArray(list) ? list.find((item) => Number((item?.row || item)?.id) === numericId) || null : null;
+    }
+
     if (req.method === "GET") {
       if (!Number.isFinite(numericId)) return res.status(400).json({ error: "invalid id", debug });
-      const row = await sqlQueryOneById();
+      const row = await fetchTaskByIdFull();
       if (!row) return res.status(404).json({ error: "Task not found", debug });
       return res.status(200).json({ task: mapRowToTask(row) });
     }
@@ -88,7 +106,7 @@ module.exports = async (req, res) => {
       if (!rowId) return res.status(404).json({ error: "Task not found (cannot resolve row_id)", debug });
 
       const row = mapTaskToRow({ ...req.body, id: Number(id) });
-      const updated = await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
+      await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
         method: "PUT",
         body: JSON.stringify(buildUpdateRequestBody({
           isV2,
@@ -97,7 +115,33 @@ module.exports = async (req, res) => {
           row,
         })),
       });
-      return res.status(200).json({ task: mapRowToTask(updated) });
+      const refreshedRow = await fetchTaskByIdFull();
+      if (!refreshedRow) {
+        return res.status(500).json({ error: "SeaTable update verification failed: task not found after update", debug });
+      }
+      const refreshedTask = mapRowToTask(refreshedRow);
+      const expectedTask = mapRowToTask({ ...row, _id: rowId });
+      const sameTask =
+        String(refreshedTask.title || "") === String(expectedTask.title || "") &&
+        String(refreshedTask.description || "") === String(expectedTask.description || "") &&
+        String(refreshedTask.author || "") === String(expectedTask.author || "") &&
+        String(refreshedTask.assignee || "") === String(expectedTask.assignee || "") &&
+        String(refreshedTask.department || "") === String(expectedTask.department || "") &&
+        String(refreshedTask.priority || "") === String(expectedTask.priority || "") &&
+        String(refreshedTask.status || "") === String(expectedTask.status || "") &&
+        String(refreshedTask.type || "") === String(expectedTask.type || "") &&
+        String(refreshedTask.office || "") === String(expectedTask.office || "") &&
+        String(refreshedTask.phone || "") === String(expectedTask.phone || "") &&
+        String(refreshedTask.report || "") === String(expectedTask.report || "") &&
+        String(refreshedTask.rejectedReason || "") === String(expectedTask.rejectedReason || "") &&
+        String(refreshedTask.databaseId || "") === String(expectedTask.databaseId || "") &&
+        Number(refreshedTask.slaDays || 0) === Number(expectedTask.slaDays || 0) &&
+        String(refreshedTask.deadline || "").slice(0, 10) === String(expectedTask.deadline || "").slice(0, 10) &&
+        String(refreshedTask.createdAt || "").slice(0, 10) === String(expectedTask.createdAt || "").slice(0, 10);
+      if (!sameTask) {
+        return res.status(500).json({ error: "SeaTable update verification failed: changes were not applied", debug });
+      }
+      return res.status(200).json({ task: refreshedTask });
     }
 
     if (req.method === "DELETE") {

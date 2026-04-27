@@ -59,6 +59,58 @@ module.exports = async (req, res) => {
       accessMetaServer: (accessMeta && accessMeta.dtable_server) || null,
     });
 
+    async function fetchTaskById(taskId) {
+      if (!Number.isFinite(Number(taskId))) return null;
+
+      if (isV2) {
+        const sqlUrl = `${baseUrl}/sql/`;
+        const result = await seatableRequest(accessMeta.access_token, sqlUrl, {
+          method: "POST",
+          body: JSON.stringify({
+            sql: `SELECT * FROM \`${TABLE_NAME}\` WHERE \`id\` = ? LIMIT 1`,
+            convert_keys: true,
+            parameters: [Number(taskId)],
+          }),
+        });
+        return Array.isArray(result?.results) && result.results.length ? result.results[0] : null;
+      }
+
+      const rows = await seatableRequest(accessMeta.access_token, rowsUrlBase, { method: "GET" });
+      const list =
+        (Array.isArray(rows) ? rows : null) ||
+        rows?.rows ||
+        rows?.results ||
+        rows?.data?.rows ||
+        rows?.data?.results ||
+        [];
+      return Array.isArray(list) ? list.find((item) => Number((item?.row || item)?.id) === Number(taskId)) || null : null;
+    }
+
+    function normalizeDate(value) {
+      return String(value || "").slice(0, 10);
+    }
+
+    function verifyTaskUpdate(expectedTask, actualTask) {
+      return (
+        String(actualTask.title || "") === String(expectedTask.title || "") &&
+        String(actualTask.description || "") === String(expectedTask.description || "") &&
+        String(actualTask.author || "") === String(expectedTask.author || "") &&
+        String(actualTask.assignee || "") === String(expectedTask.assignee || "") &&
+        String(actualTask.department || "") === String(expectedTask.department || "") &&
+        String(actualTask.priority || "") === String(expectedTask.priority || "") &&
+        String(actualTask.status || "") === String(expectedTask.status || "") &&
+        String(actualTask.type || "") === String(expectedTask.type || "") &&
+        String(actualTask.office || "") === String(expectedTask.office || "") &&
+        String(actualTask.phone || "") === String(expectedTask.phone || "") &&
+        String(actualTask.report || "") === String(expectedTask.report || "") &&
+        String(actualTask.rejectedReason || "") === String(expectedTask.rejectedReason || "") &&
+        String(actualTask.databaseId || "") === String(expectedTask.databaseId || "") &&
+        Number(actualTask.slaDays || 0) === Number(expectedTask.slaDays || 0) &&
+        normalizeDate(actualTask.deadline) === normalizeDate(expectedTask.deadline) &&
+        normalizeDate(actualTask.createdAt) === normalizeDate(expectedTask.createdAt)
+      );
+    }
+
     if (req.method === "GET") {
       let tasks = [];
       if (isV2) {
@@ -177,12 +229,21 @@ module.exports = async (req, res) => {
           body: JSON.stringify(body),
         });
         console.log("[tasks] update result", { result });
+
+        const refreshedRow = await fetchTaskById(taskId);
+        if (!refreshedRow) {
+          throw new Error("SeaTable update verification failed: task not found after update");
+        }
+        const refreshedTask = mapRowToTask(refreshedRow);
+        const expectedTask = mapRowToTask({ ...row, _id: rowId });
+        if (!verifyTaskUpdate(expectedTask, refreshedTask)) {
+          throw new Error("SeaTable update verification failed: changes were not applied");
+        }
+        return res.status(200).json({ success: true, task: refreshedTask });
       } catch (updateError) {
         console.error("[tasks] update failed", { message: updateError?.message });
         throw updateError;
       }
-
-      return res.status(200).json({ success: true, task });
     }
 
     // DELETE - удалить задачу

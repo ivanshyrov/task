@@ -183,11 +183,10 @@
         for (const task of toUpdate) {
             const rowId = task.row_id || taskRowMap.get(task.id);
             if (!rowId) continue;
-            const record = SeaTableAdapter.toRecord(task);
             try {
                 await apiRequest(`${API_BASE}/${task.id}`, {
                     method: 'PUT',
-                    body: JSON.stringify({ ...record, row_id: rowId })
+                    body: JSON.stringify({ ...task, row_id: rowId, id: task.id })
                 });
             } catch (err) {
                 syncFailed = true;
@@ -749,8 +748,11 @@
     // ==================== АВТОРИЗАЦИЯ ====================
     function scheduleSyncTasks(reason = '') {
         if (!currentUser || app.style.display === 'none') return;
+        if (document.visibilityState === 'hidden') return;
+        if (document.querySelector('.modal.show')) return;
+        if (reason && reason !== 'online' && reason !== 'СЃРµС‚СЊ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅР°') return;
         const now = Date.now();
-        if (now - lastSyncAttemptAt < 5000) return;
+        if (now - lastSyncAttemptAt < 60000) return;
         if (reason) {
             setSyncBanner(`Синхронизация: ${reason}...`, false, true);
         }
@@ -1300,8 +1302,10 @@
         refreshTaskRelatedUi();
         try {
             const rowId = task.row_id || taskRowMap.get(task.id);
-            const record = SeaTableAdapter.toRecord(task);
-            await apiRequest(API_BASE, { method: 'PUT', body: JSON.stringify({ ...record, row_id: rowId, id: task.id }) });
+            await apiRequest(`${API_BASE}/${task.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ ...task, row_id: rowId, id: task.id })
+            });
             showToast(`Задача #${task.id} обновлена`, 'success');
             setSyncBanner('Изменения сохранены в SeaTable.');
             return true;

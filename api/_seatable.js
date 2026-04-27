@@ -91,15 +91,18 @@ async function seatableRequest(accessToken, url, options = {}) {
       },
     });
 
-  let response = await makeRequest("Token");
+  const preferBearer = url.includes("/api/v2/") || url.includes("/api-gateway/");
+  const primaryScheme = preferBearer ? "Bearer" : "Token";
+  const fallbackScheme = preferBearer ? "Token" : "Bearer";
+
+  let response = await makeRequest(primaryScheme);
   // #region agent log
-  fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H4',location:'api/_seatable.js:seatableRequest:token',message:'Rows request with Token auth',data:{status:response.status,url},timestamp:Date.now()})}).catch(()=>{});
+  fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H4',location:'api/_seatable.js:seatableRequest:primary',message:'Rows request with primary auth scheme',data:{status:response.status,url,scheme:primaryScheme},timestamp:Date.now()})}).catch(()=>{});
   // #endregion
   if (response.status === 401 || response.status === 403) {
-    // Some installations expect Bearer instead of Token.
-    response = await makeRequest("Bearer");
+    response = await makeRequest(fallbackScheme);
     // #region agent log
-    fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H4',location:'api/_seatable.js:seatableRequest:bearer',message:'Rows request with Bearer auth fallback',data:{status:response.status,url},timestamp:Date.now()})}).catch(()=>{});
+    fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H4',location:'api/_seatable.js:seatableRequest:fallback',message:'Rows request with fallback auth scheme',data:{status:response.status,url,scheme:fallbackScheme},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
   }
 

@@ -32,6 +32,28 @@ module.exports = async (req, res) => {
       table: TABLE_NAME,
     });
 
+    async function fetchUserByRowId(rowId) {
+      if (!rowId) return null;
+
+      if (isV2) {
+        const sqlUrl = `${baseUrl}/sql/`;
+        const result = await seatableRequest(accessMeta.access_token, sqlUrl, {
+          method: "POST",
+          body: JSON.stringify({
+            sql: `SELECT * FROM \`${TABLE_NAME}\` WHERE \`_id\` = ? LIMIT 1`,
+            convert_keys: true,
+            parameters: [rowId],
+          }),
+        });
+        return Array.isArray(result?.results) && result.results.length ? result.results[0] : null;
+      }
+
+      const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
+      const list = Array.isArray(rows) ? rows : rows?.rows || [];
+      const found = list.find((item) => item?._id === rowId);
+      return found ? (found.row || found) : null;
+    }
+
     // GET - получить всех пользователей
     if (req.method === "GET") {
       let users = [];
@@ -207,6 +229,21 @@ module.exports = async (req, res) => {
             row,
           })),
         });
+        const refreshedUser = await fetchUserByRowId(rowId);
+        if (!refreshedUser) {
+          throw new Error("SeaTable user update verification failed: row not found after update");
+        }
+        const userMatches =
+          String(refreshedUser.username || "") === String(row.username || "") &&
+          String(refreshedUser.full_name || "") === String(row.full_name || "") &&
+          String(refreshedUser.role || "") === String(row.role || "") &&
+          String(refreshedUser.department || "") === String(row.department || "") &&
+          String(refreshedUser.position || "") === String(row.position || "") &&
+          String(refreshedUser.email || "") === String(row.email || "") &&
+          String(refreshedUser.phone || "") === String(row.phone || "");
+        if (!userMatches) {
+          throw new Error("SeaTable user update verification failed: changes were not applied");
+        }
         console.log("[users] update success", { username });
       } catch (updateError) {
         console.error("[users] update failed", { message: updateError?.message });

@@ -147,6 +147,41 @@ test("tasks api PUT sends SeaTable v2 updates payload", async () => {
     mapTaskToRow,
     seatableRequest: async (token, url, options) => {
       calls.push({ token, url, options });
+      if (url.endsWith("/sql/")) {
+        return {
+          results: [
+            {
+              _id: "row-2",
+              id: 2,
+              created_at: new Date().toISOString().split("T")[0],
+              updated_at: new Date().toISOString().split("T")[0],
+              database_id: "db1",
+              type: "Прочее",
+              title: "Updated task",
+              department: "",
+              description: "",
+              author: "",
+              assignee: "",
+              office: "",
+              phone: "",
+              priority: "Средний",
+              status: "Новая",
+              deadline: "",
+              sla_days: 3,
+              assigned_at: "",
+              in_progress_at: "",
+              review_at: "",
+              closed_at: "",
+              rejected_at: "",
+              rejected_reason: "",
+              report: "",
+              comments: "[]",
+              history: "[]",
+              attachments: "[]",
+            },
+          ],
+        };
+      }
       return { success: true };
     },
   };
@@ -168,7 +203,7 @@ test("tasks api PUT sends SeaTable v2 updates payload", async () => {
     await handler(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 2);
     assert.equal(calls[0].options.method, "PUT");
     assert.deepEqual(JSON.parse(calls[0].options.body), {
       table_name: "Tasks",
@@ -206,6 +241,7 @@ test("tasks api PUT sends SeaTable v2 updates payload", async () => {
         },
       ],
     });
+    assert.equal(calls[1].options.method, "POST");
   } finally {
     restore();
   }
@@ -271,7 +307,7 @@ test("users api PUT finds row by username and sends SeaTable v2 updates payload"
     getRowsBaseUrl: () => "https://cloud.seatable.io/api-gateway/api/v2/dtables/base-1",
     seatableRequest: async (token, url, options) => {
       calls.push({ token, url, options });
-      if (url.endsWith("/sql/")) {
+      if (url.endsWith("/sql/") && calls.length === 1) {
         return {
           results: [
             {
@@ -282,6 +318,22 @@ test("users api PUT finds row by username and sends SeaTable v2 updates payload"
               department: "IT",
               position: "",
               email: "",
+              phone: "",
+            },
+          ],
+        };
+      }
+      if (url.endsWith("/sql/")) {
+        return {
+          results: [
+            {
+              _id: "user-row-1",
+              username: "new-login",
+              full_name: "New Name",
+              role: "employee",
+              department: "Support",
+              position: "",
+              email: "new@example.com",
               phone: "",
             },
           ],
@@ -313,7 +365,7 @@ test("users api PUT finds row by username and sends SeaTable v2 updates payload"
     await handler(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
     assert.equal(calls[0].options.method, "POST");
     assert.equal(calls[1].options.method, "PUT");
     assert.deepEqual(JSON.parse(calls[1].options.body), {
@@ -333,6 +385,7 @@ test("users api PUT finds row by username and sends SeaTable v2 updates payload"
         },
       ],
     });
+    assert.equal(calls[2].options.method, "POST");
   } finally {
     restore();
   }
