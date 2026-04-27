@@ -1,4 +1,6 @@
 const {
+  buildDeleteRequestBody,
+  buildUpdateRequestBody,
   getAppAccessToken,
   getRowsBaseUrl,
   mapRowToTask,
@@ -162,13 +164,12 @@ module.exports = async (req, res) => {
       const row = mapTaskToRow(task);
       console.log("[tasks] updating", { rowId, taskId, row });
 
-      const body = isV2 ? { 
-        table_name: TABLE_NAME, 
-        rows: [{ _id: rowId, ...row }] 
-      } : { 
-        row_id: rowId, 
-        ...row 
-      };
+      const body = buildUpdateRequestBody({
+        isV2,
+        tableName: TABLE_NAME,
+        rowId,
+        row,
+      });
 
       try {
         const result = await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
@@ -195,10 +196,11 @@ module.exports = async (req, res) => {
 
       console.log("[tasks] deleting", { row_id, id });
 
-      const body = isV2 ? { 
-        table_name: TABLE_NAME, 
-        row_ids: [row_id] 
-      } : [row_id];
+      const body = buildDeleteRequestBody({
+        isV2,
+        tableName: TABLE_NAME,
+        rowId: row_id,
+      });
 
       await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
         method: "DELETE",

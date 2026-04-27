@@ -197,7 +197,40 @@ function mapTaskToRow(task) {
   };
 }
 
+function buildUpdateRequestBody({ isV2, tableName, rowId, row }) {
+  if (!rowId) {
+    throw new Error("rowId is required for update body");
+  }
+
+  return isV2
+    ? {
+        table_name: tableName,
+        updates: [{ row_id: rowId, row }],
+      }
+    : {
+        row_id: rowId,
+        row,
+      };
+}
+
+function buildDeleteRequestBody({ isV2, tableName, rowId }) {
+  if (!rowId) {
+    throw new Error("rowId is required for delete body");
+  }
+
+  return isV2
+    ? {
+        table_name: tableName,
+        row_ids: [rowId],
+      }
+    : {
+        row_id: rowId,
+      };
+}
+
 module.exports = {
+  buildDeleteRequestBody,
+  buildUpdateRequestBody,
   getAppAccessToken,
   getRowsBaseUrl,
   mapRowToTask,

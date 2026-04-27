@@ -101,7 +101,8 @@
     }
 
     // Синхронизация пользователя с SeaTable
-    async function syncUserToSeaTable(user, action) {
+    async function syncUserToSeaTable(user, action, lookupUsername) {
+        const targetUsername = lookupUsername || user.username;
         try {
             if (action === 'create') {
                 await apiRequest(API_USERS, {
@@ -109,14 +110,14 @@
                     body: JSON.stringify({ user })
                 });
             } else if (action === 'update') {
-                await apiRequest(`${API_USERS}?username=${encodeURIComponent(user.username)}`, {
+                await apiRequest(`${API_USERS}?username=${encodeURIComponent(targetUsername)}`, {
                     method: 'PUT',
-                    body: JSON.stringify({ user, username: user.username })
+                    body: JSON.stringify({ user, username: targetUsername })
                 });
             } else if (action === 'delete') {
-                await apiRequest(`${API_USERS}?username=${encodeURIComponent(user.username)}`, {
+                await apiRequest(`${API_USERS}?username=${encodeURIComponent(targetUsername)}`, {
                     method: 'DELETE',
-                    body: JSON.stringify({ username: user.username })
+                    body: JSON.stringify({ username: targetUsername })
                 });
             }
         } catch (error) {
@@ -163,6 +164,7 @@
     async function editUser(username, userData) {
         const user = findUserByUsername(username);
         if (!user) return { success: false, error: 'Пользователь не найден' };
+        const previousUsername = user.username;
         
         // Проверка уникальности нового логина
         if (userData.username !== username && findUserByUsername(userData.username)) {
@@ -182,7 +184,7 @@
         }
         
         saveUsers();
-        void syncUserToSeaTable(user, 'update');
+        void syncUserToSeaTable(user, 'update', previousUsername);
         return { success: true, user };
     }
 

@@ -1,5 +1,11 @@
 // SeaTable API для пользователей
-const { getAppAccessToken, getRowsBaseUrl, seatableRequest } = require("../_seatable");
+const {
+  buildDeleteRequestBody,
+  buildUpdateRequestBody,
+  getAppAccessToken,
+  getRowsBaseUrl,
+  seatableRequest,
+} = require("../_seatable");
 
 const TABLE_NAME = process.env.SEATABLE_USERS_TABLE || "Users";
 
@@ -194,13 +200,12 @@ module.exports = async (req, res) => {
       try {
         await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
           method: "PUT",
-          body: JSON.stringify(isV2 ? { 
-            table_name: TABLE_NAME, 
-            rows: [{ _id: rowId, ...row }] 
-          } : { 
-            row_id: rowId, 
-            ...row 
-          }),
+          body: JSON.stringify(buildUpdateRequestBody({
+            isV2,
+            tableName: TABLE_NAME,
+            rowId,
+            row,
+          })),
         });
         console.log("[users] update success", { username });
       } catch (updateError) {
@@ -251,10 +256,11 @@ module.exports = async (req, res) => {
 
       await seatableRequest(accessMeta.access_token, rowsCreateUrl, {
         method: "DELETE",
-        body: JSON.stringify(isV2 ? { 
-          table_name: TABLE_NAME, 
-          row_ids: [rowId] 
-        } : [rowId]),
+        body: JSON.stringify(buildDeleteRequestBody({
+          isV2,
+          tableName: TABLE_NAME,
+          rowId,
+        })),
       });
 
       return res.status(200).json({ success: true });

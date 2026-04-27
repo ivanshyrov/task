@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node api/tasks/index.js",
     "dev": "node --watch api/tasks/index.js",
-    "build": "echo 'No build step required'"
+    "build": "echo 'No build step required'",
+    "test": "node test/seatable.test.js"
   },
   "dependencies": {
     "node-fetch": "^2.7.0"

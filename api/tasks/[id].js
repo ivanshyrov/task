@@ -1,4 +1,6 @@
 const {
+  buildDeleteRequestBody,
+  buildUpdateRequestBody,
   getAppAccessToken,
   getRowsBaseUrl,
   mapRowToTask,
@@ -88,11 +90,12 @@ module.exports = async (req, res) => {
       const row = mapTaskToRow({ ...req.body, id: Number(id) });
       const updated = await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
         method: "PUT",
-        body: JSON.stringify(
-          isV2
-            ? { table_name: TABLE_NAME, updates: [{ row_id: rowId, row }] }
-            : { row_id: rowId, row }
-        ),
+        body: JSON.stringify(buildUpdateRequestBody({
+          isV2,
+          tableName: TABLE_NAME,
+          rowId,
+          row,
+        })),
       });
       return res.status(200).json({ task: mapRowToTask(updated) });
     }
@@ -105,7 +108,11 @@ module.exports = async (req, res) => {
 
       const deleted = await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
         method: "DELETE",
-        body: JSON.stringify(isV2 ? { table_name: TABLE_NAME, row_ids: [rowId] } : { row_id: rowId }),
+        body: JSON.stringify(buildDeleteRequestBody({
+          isV2,
+          tableName: TABLE_NAME,
+          rowId,
+        })),
       });
       // SeaTable v2 returns { deleted_rows: number }
       if (isV2 && deleted && typeof deleted.deleted_rows === "number" && deleted.deleted_rows < 1) {
