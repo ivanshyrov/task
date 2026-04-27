@@ -22,34 +22,40 @@ async function getAppAccessToken() {
   // #region agent log
   fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H1',location:'api/_seatable.js:getAppAccessToken:start',message:'Auth request start',data:{serverBase:getServerBase()},timestamp:Date.now()})}).catch(()=>{});
   // #endregion
-  const postResponse = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_token: process.env.SEATABLE_API_TOKEN }),
-  });
-  console.log("[seatable] auth response", { status: postResponse.status });
-  // #region agent log
-  fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H2',location:'api/_seatable.js:getAppAccessToken:post',message:'POST auth response',data:{status:postResponse.status},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
-  if (postResponse.ok) return postResponse.json();
-
-  // Some SeaTable installations expect GET + Authorization header.
-  if (postResponse.status === 405) {
-    const getResponse = await fetch(url, {
+  
+  // Для cloud.seatable.io используем GET с Authorization header
+  const serverBase = getServerBase();
+  const useGetAuth = serverBase.includes('cloud.seatable.io');
+  
+  let response;
+  if (useGetAuth) {
+    // Cloud SeaTable требует GET запрос с Authorization header
+    response = await fetch(url, {
       method: "GET",
-      headers: { Authorization: `Token ${process.env.SEATABLE_API_TOKEN}` },
+      headers: {
+        Authorization: `Token ${process.env.SEATABLE_API_TOKEN}`,
+        "Content-Type": "application/json"
+      },
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H2',location:'api/_seatable.js:getAppAccessToken:get',message:'GET auth fallback response',data:{status:getResponse.status},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    if (getResponse.ok) return getResponse.json();
-    const getBody = await getResponse.text();
-    throw new Error(`SeaTable auth failed (GET): ${getResponse.status} ${getBody}`);
+    console.log("[seatable] auth response (GET)", { status: response.status });
+  } else {
+    // Self-hosted SeaTable использует POST
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_token: process.env.SEATABLE_API_TOKEN }),
+    });
+    console.log("[seatable] auth response (POST)", { status: response.status });
   }
 
-  const postBody = await postResponse.text();
-  throw new Error(`SeaTable auth failed (POST): ${postResponse.status} ${postBody}`);
+  // #region agent log
+  fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H2',location:'api/_seatable.js:getAppAccessToken:response',message:'Auth response',data:{status:response.status,useGetAuth},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
+  if (response.ok) return response.json();
+
+  const body = await response.text();
+  throw new Error(`SeaTable auth failed: ${response.status} ${body}`);
 }
 
 function getRowsBaseUrl(accessMeta) {
