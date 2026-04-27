@@ -397,7 +397,7 @@
     // Стандартные пользователи (для первой инициализации)
     const DEFAULT_USERS = [
         { username: 'admin', password: 'admin123', role: 'admin', department: 'IT', fullName: 'Администратор Системы', position: 'Главный администратор', email: 'admin@it-sp.ru', phone: '+7 (999) 111-11-11', office: '222' },
-        { username: 'director', password: 'director123', role: 'director', department: 'IT', fullName: 'Иванов Сергей Петрович', position: 'Руководитель отдела', email: 'director@it-sp.ru', phone: '+7 (999) 222-22-22', office: '201' },
+        { username: 'director', password: 'director123', role: 'director', department: 'IT', fullName: 'Иванов Сергей Петрович', position: 'Руководитель направления', email: 'director@it-sp.ru', phone: '+7 (999) 222-22-22', office: '201' },
         { username: 'employee', password: 'employee123', role: 'employee', department: 'IT', fullName: 'Петров Алексей Иванович', position: 'Специалист', email: 'employee@it-sp.ru', phone: '+7 (999) 333-33-33', office: '229' }
     ];
 
@@ -519,7 +519,7 @@
                 id: Number(record.id),
                 createdAt: record.created_at,
                 updatedAt: record.updated_at,
-                type: record.type || 'Прочее',
+                type: record.type || '',
                 title: record.title || '',
                 description: record.description || '',
                 author: record.author || '',
@@ -537,6 +537,16 @@
             };
         }
     };
+
+    function buildDefaultTaskTitle({ department, description }) {
+        const dept = String(department || '').trim();
+        const desc = String(description || '').replace(/\s+/g, ' ').trim();
+        const snippet = desc ? desc.slice(0, 80) : '';
+        if (dept && snippet) return `Заявка: ${dept} — ${snippet}${desc.length > 80 ? '…' : ''}`;
+        if (dept) return `Заявка: ${dept}`;
+        if (snippet) return `Заявка: ${snippet}${desc.length > 80 ? '…' : ''}`;
+        return 'Заявка';
+    }
 
     function canUseDatabaseScopes() {
         return currentUser && (currentUser.role === 'admin' || currentUser.role === 'director');
@@ -657,7 +667,7 @@
     function normalizeTask(task) {
         if (task.status === 'Завершена') task.status = 'Закрыта';
         if (!TASK_STATUSES.includes(task.status)) task.status = 'Новая';
-        task.type = task.type || 'Прочее';
+        task.type = typeof task.type === 'string' ? task.type : '';
         task.title = task.title || task.description || `Заявка #${task.id}`;
         task.assignee = task.assignee || '';
         if (!PRIORITIES.includes(task.priority)) task.priority = 'Средний';
@@ -1069,7 +1079,7 @@
 
             html += `<tr data-index="${task.id}" draggable="true" class="task-row" data-taskid="${task.id}">
                 <td><input type="checkbox" class="task-checkbox" data-id="${task.id}" ${canDelete ? '' : 'disabled'}></td>
-                <td>${task.id}</td><td>${formatDate(task.createdAt)}</td><td>${dbName}</td><td>${task.type || 'Прочее'}</td><td>${task.title || '—'}</td><td>${task.department}</td>
+                <td>${task.id}</td><td>${formatDate(task.createdAt)}</td><td>${dbName}</td><td>${task.type ? task.type : '—'}</td><td>${task.title || '—'}</td><td>${task.department}</td>
                 <td>${task.author}</td><td>${task.assignee || '—'}</td><td>${task.office}</td><td>${task.phone}</td>
                 <td class="priority-${task.priority.toLowerCase()}">${task.priority}</td>
                 <td><span class="status-badge ${statusClass}">${task.status}</span></td>
@@ -1288,7 +1298,7 @@
         f.status.value = task.status;
         f.priority.value = task.priority;
         f.deadline.value = task.deadline || '';
-        f.type.value = task.type || 'Прочее';
+        f.type.value = task.type || '';
         f.title.value = task.title || '';
         f.description.value = task.description;
         f.database.value = databases.find(d => d.id === task.databaseId)?.name || '';
@@ -1488,8 +1498,8 @@
             createdAt: new Date().toISOString().split('T')[0],
             updatedAt: new Date().toISOString().split('T')[0],
             databaseId: dbId,
-            type: dept,
-            title: `Заявка: ${dept}`,
+            type: '',
+            title: buildDefaultTaskTitle({ department: dept, description }),
             department: dept,
             description: description,
             author: currentUser.fullName,
@@ -1610,7 +1620,7 @@
     exportTasksBtn.addEventListener('click', () => {
         const filtered = filterTasks();
         if (!filtered.length) { showToast('Нет данных для экспорта', 'warning'); return; }
-        const headers = ['ID','Дата создания','База','Тип','Тема','Отдел','Описание','Автор','Исполнитель','Кабинет','Телефон','Приоритет','Статус','Срок','SLA(дней)','Отчёт','Причина отклонения'];
+        const headers = ['ID','Дата создания','База','Тип','Тема','Направление','Описание','Автор','Исполнитель','Кабинет','Телефон','Приоритет','Статус','Срок','SLA(дней)','Отчёт','Причина отклонения'];
         const rows = filtered.map(t => [t.id, t.createdAt, databases.find(d=>d.id===t.databaseId)?.name||'', t.type || '', t.title || '', t.department, t.description, t.author, t.assignee || '', t.office, t.phone, t.priority, t.status, t.deadline, t.slaDays || '', t.report, t.rejectedReason || '']);
         const csv = headers.join(',') + '\n' + rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
         const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
@@ -1881,9 +1891,9 @@
         // Сохраняем оригинальный логин для поиска
         editForm.dataset.originalUsername = username;
         
-        // Заполняем отделы
+        // Заполняем направления
         const deptSelect = document.getElementById('editDepartment');
-        deptSelect.innerHTML = '<option value="">Выберите отдел</option>' + 
+        deptSelect.innerHTML = '<option value="">Выберите направление</option>' + 
             FULL_DEPARTMENTS.map(dept => `<option value="${dept}">${dept}</option>`).join('');
         
         editModal.classList.add('show');
@@ -2038,7 +2048,7 @@
     }
 
     // ==================== НАВИГАЦИЯ ====================
-    // Добавление отдела (модальное окно)
+    // Добавление направления (модальное окно)
     const addDepartmentForm = document.getElementById('addDepartmentForm');
     const addDepartmentModal = document.getElementById('addDepartmentModal');
     const addDeptHeadSelect = document.getElementById('addDeptHead');
@@ -2121,9 +2131,9 @@
     document.getElementById('addUserBtn')?.addEventListener('click', () => {
         if (!currentUser || currentUser.role !== 'admin') return;
         addUserForm.reset();
-        // Заполняем отделы
+        // Заполняем направления
         if (addUserDepartment) {
-            addUserDepartment.innerHTML = '<option value="">Выберите отдел</option>' + 
+            addUserDepartment.innerHTML = '<option value="">Выберите направление</option>' + 
                 FULL_DEPARTMENTS.map(dept => `<option value="${dept}">${dept}</option>`).join('');
         }
         addUserModal.classList.add('show');
@@ -2167,7 +2177,7 @@
     const editUserForm = document.getElementById('editUserForm');
     const editUserModal = document.getElementById('editUserModal');
     
-    // Закрытие модального окна отдела при клике на крестик
+    // Закрытие модальных окон при клике на крестик
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.addEventListener('click', function() {
             const modal = this.closest('.modal');
