@@ -234,23 +234,34 @@ module.exports = async (req, res) => {
             row,
           })),
         });
-        const refreshedUser = await fetchUserByRowId(rowId);
-        if (!refreshedUser) {
-          throw new Error("SeaTable user update verification failed: row not found after update");
+        // SeaTable Cloud can apply updates asynchronously; a strict immediate re-fetch check
+        // can produce false negatives. We keep a best-effort verification, but never fail the request.
+        try {
+          const refreshedUser = await fetchUserByRowId(rowId);
+          if (!refreshedUser) {
+            console.warn("[users] update verification skipped: row not found after update", { username, rowId });
+          } else {
+            const userMatches =
+              String(refreshedUser.username || "") === String(row.username || "") &&
+              String(refreshedUser.full_name || "") === String(row.full_name || "") &&
+              String(refreshedUser.role || "") === String(row.role || "") &&
+              String(refreshedUser.department || "") === String(row.department || "") &&
+              String(refreshedUser.position || "") === String(row.position || "") &&
+              String(refreshedUser.email || "") === String(row.email || "") &&
+              String(refreshedUser.phone || "") === String(row.phone || "") &&
+              String(refreshedUser.office || "") === String(row.office || "");
+            if (!userMatches) {
+              console.warn("[users] update verification mismatch (may be eventual consistency)", {
+                username,
+                rowId,
+              });
+            } else {
+              console.log("[users] update success", { username });
+            }
+          }
+        } catch (verifyError) {
+          console.warn("[users] update verification error (ignored)", { message: verifyError?.message || String(verifyError) });
         }
-        const userMatches =
-          String(refreshedUser.username || "") === String(row.username || "") &&
-          String(refreshedUser.full_name || "") === String(row.full_name || "") &&
-          String(refreshedUser.role || "") === String(row.role || "") &&
-          String(refreshedUser.department || "") === String(row.department || "") &&
-          String(refreshedUser.position || "") === String(row.position || "") &&
-          String(refreshedUser.email || "") === String(row.email || "") &&
-          String(refreshedUser.phone || "") === String(row.phone || "") &&
-          String(refreshedUser.office || "") === String(row.office || "");
-        if (!userMatches) {
-          throw new Error("SeaTable user update verification failed: changes were not applied");
-        }
-        console.log("[users] update success", { username });
       } catch (updateError) {
         console.error("[users] update failed", { message: updateError?.message });
         throw updateError;

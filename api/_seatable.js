@@ -1,4 +1,11 @@
 const REQUIRED_ENV = ["SEATABLE_API_TOKEN", "SEATABLE_BASE_UUID"];
+const DEFAULT_REQUEST_TIMEOUT_MS = 12000;
+
+// Best-effort in-memory cache for app access token.
+// Vercel serverless instances are often reused ("warm"), so this saves a lot of time.
+let cachedAccessMeta = null;
+let cachedAccessMetaExpiresAt = 0;
+let cachedAccessMetaKey = "";
 
 function assertEnv() {
   const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
@@ -14,6 +21,11 @@ function getServerBase() {
 
 async function getAppAccessToken() {
   assertEnv();
+  const cacheKey = `${getServerBase()}|${String(process.env.SEATABLE_BASE_UUID || "")}|${String(process.env.SEATABLE_API_TOKEN || "").slice(0, 8)}`;
+  const now = Date.now();
+  if (cachedAccessMeta && cachedAccessMetaKey === cacheKey && cachedAccessMetaExpiresAt - now > 60_000) {
+    return cachedAccessMeta;
+  }
   const url = `${getServerBase()}/api/v2.1/dtable/app-access-token/`;
   console.log("[seatable] auth start", {
     serverBase: getServerBase(),
@@ -45,7 +57,15 @@ async function getAppAccessToken() {
     console.log("[seatable] auth response (POST)", { status: response.status });
   }
 
-  if (response.ok) return response.json();
+  if (response.ok) {
+    const meta = await response.json();
+    const expireInSec = Number(meta?.expire_in || meta?.expires_in || 0) || 0;
+    // Keep a safety buffer of 60s.
+    cachedAccessMeta = meta;
+    cachedAccessMetaKey = cacheKey;
+    cachedAccessMetaExpiresAt = now + Math.max(0, expireInSec * 1000 - 60_000);
+    return meta;
+  }
 
   const body = await response.text();
   throw new Error(`SeaTable auth failed: ${response.status} ${body}`);
@@ -68,9 +88,15 @@ function getRowsBaseUrl(accessMeta) {
 }
 
 async function seatableRequest(accessToken, url, options = {}) {
+  const timeoutMs =
+    Number(options?.timeoutMs) > 0 ? Number(options.timeoutMs) : DEFAULT_REQUEST_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
   const makeRequest = (scheme) =>
     fetch(url, {
       ...options,
+      signal: controller.signal,
       headers: {
         Authorization: `${scheme} ${accessToken}`,
         "Content-Type": "application/json",
@@ -82,9 +108,19 @@ async function seatableRequest(accessToken, url, options = {}) {
   const primaryScheme = preferBearer ? "Bearer" : "Token";
   const fallbackScheme = preferBearer ? "Token" : "Bearer";
 
-  let response = await makeRequest(primaryScheme);
-  if (response.status === 401 || response.status === 403) {
-    response = await makeRequest(fallbackScheme);
+  let response;
+  try {
+    response = await makeRequest(primaryScheme);
+    if (response.status === 401 || response.status === 403) {
+      response = await makeRequest(fallbackScheme);
+    }
+  } catch (e) {
+    if (e?.name === "AbortError") {
+      throw new Error(`SeaTable request timeout after ${timeoutMs}ms`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeout);
   }
 
   if (!response.ok) {

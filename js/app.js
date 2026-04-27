@@ -817,10 +817,24 @@
     }
 
     async function apiRequest(url, options = {}) {
-        const response = await fetch(url, {
-            headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-            ...options
-        });
+        const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 12000;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        let response;
+        try {
+            response = await fetch(url, {
+                headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+                signal: controller.signal,
+                ...options
+            });
+        } catch (e) {
+            if (e?.name === 'AbortError') {
+                throw new Error(`Таймаут запроса (${Math.round(timeoutMs / 1000)}с)`);
+            }
+            throw e;
+        } finally {
+            clearTimeout(timeout);
+        }
         if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
             throw new Error(payload.error || `Ошибка API (${response.status})`);
@@ -832,7 +846,7 @@
         lastSyncAttemptAt = Date.now();
         setSyncBanner('Синхронизация задач с SeaTable...');
         try {
-            const payload = await apiRequest(API_BASE);
+            const payload = await apiRequest(API_BASE, { timeoutMs: 12000 });
             const remoteTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
             taskRowMap.clear();
             databases.forEach(db => { db.tasks = []; });
