@@ -99,6 +99,14 @@
         } catch (error) {
             console.log('[initUsers] offline mode, using localStorage only');
         }
+
+        // Нормализация главного админа (чтобы не терялись поля из старых сохранений/пустого SeaTable)
+        const adminUser = findUserByUsername('admin');
+        if (adminUser) {
+            if (!adminUser.office) adminUser.office = '222';
+        }
+        if (currentUser?.username === 'admin' && !currentUser.office) currentUser.office = '222';
+        saveUsers();
     }
 
     function saveUsers() {
@@ -1841,10 +1849,11 @@
                 <td>${sanitizeHTML(u.phone || '—')}</td>
                 <td>${sanitizeHTML(u.office || '—')}</td>
                 <td>
-                    ${u.username !== 'admin' 
+                    ${u.username !== 'admin'
                         ? `<button class="icon-btn edit-user-btn" data-username="${sanitizeHTML(u.username)}" title="Редактировать"><i class="fas fa-edit"></i></button>
-                           <button class="icon-btn delete-user-btn" data-username="${sanitizeHTML(u.username)}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>` 
-                        : '<span style="color:var(--primary); font-size:12px;">Основной</span>'}
+                           <button class="icon-btn delete-user-btn" data-username="${sanitizeHTML(u.username)}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>`
+                        : `<button class="icon-btn edit-user-btn" data-username="admin" title="Редактировать (логин/пароль нельзя менять)"><i class="fas fa-edit"></i></button>
+                           <span style="color:var(--primary); font-size:12px; margin-left:8px;">Основной</span>`}
                 </td>
             </tr>`
         ).join('');
@@ -1879,14 +1888,22 @@
         const editForm = document.getElementById('editUserForm');
         
         // Заполняем форму
-        document.getElementById('editUsername').value = user.username;
+        const isMainAdmin = user.username === 'admin';
+        const editUsernameInput = document.getElementById('editUsername');
+        editUsernameInput.value = user.username;
         document.getElementById('editFullName').value = user.fullName;
         document.getElementById('editPosition').value = user.position || '';
         document.getElementById('editDepartment').value = user.department || '';
         document.getElementById('editEmail').value = user.email || '';
         document.getElementById('editPhone').value = user.phone || '';
         document.getElementById('editOffice').value = user.office || '';
-        document.getElementById('editPassword').value = '';
+        const editPasswordInput = document.getElementById('editPassword');
+        editPasswordInput.value = '';
+
+        // Для главного админа запрещаем менять логин и пароль
+        editUsernameInput.disabled = isMainAdmin;
+        editPasswordInput.disabled = isMainAdmin;
+        editPasswordInput.placeholder = isMainAdmin ? 'Недоступно для основного администратора' : 'Оставьте пустым, чтобы не менять';
         
         // Сохраняем оригинальный логин для поиска
         editForm.dataset.originalUsername = username;
@@ -2191,8 +2208,9 @@
         
         const originalUsername = editUserForm.dataset.originalUsername;
         const formData = new FormData(editUserForm);
-        const username = (formData.get('username') || '').trim();
-        const password = formData.get('password') || '';
+        const isMainAdmin = originalUsername === 'admin';
+        const username = isMainAdmin ? 'admin' : (formData.get('username') || '').trim();
+        const password = isMainAdmin ? '' : (formData.get('password') || '');
         const fullName = (formData.get('fullName') || '').trim();
         const department = (formData.get('department') || '').trim();
         const position = (formData.get('position') || '').trim();
