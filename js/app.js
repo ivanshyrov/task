@@ -33,6 +33,7 @@
     const USERS_STORAGE_KEY = 'taskPlannerUsersV1';
     const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 минут
     let sessionTimer = null;
+    let lastSyncAttemptAt = 0;
 
     async function initUsers() {
         const stored = localStorage.getItem(USERS_STORAGE_KEY);
@@ -716,6 +717,7 @@
     }
 
     async function syncTasksFromApi() {
+        lastSyncAttemptAt = Date.now();
         setSyncBanner('Синхронизация задач с SeaTable...');
         try {
             const payload = await apiRequest(API_BASE);
@@ -745,6 +747,16 @@
     }
 
     // ==================== АВТОРИЗАЦИЯ ====================
+    function scheduleSyncTasks(reason = '') {
+        if (!currentUser || app.style.display === 'none') return;
+        const now = Date.now();
+        if (now - lastSyncAttemptAt < 5000) return;
+        if (reason) {
+            setSyncBanner(`Синхронизация: ${reason}...`, false, true);
+        }
+        void syncTasksFromApi();
+    }
+
     loginForm.addEventListener('submit', async e => {
         e.preventDefault();
         
@@ -2139,6 +2151,20 @@
         });
         
         // Горячие клавиши
+        window.addEventListener('online', () => {
+            scheduleSyncTasks('сеть восстановлена');
+        });
+
+        window.addEventListener('pageshow', () => {
+            scheduleSyncTasks('возврат на страницу');
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                scheduleSyncTasks('вкладка снова активна');
+            }
+        });
+
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
                 document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show'));

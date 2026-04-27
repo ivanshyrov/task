@@ -76,6 +76,7 @@ test("mapRowToTask normalizes wrapped rows and parses json arrays", () => {
 test("mapTaskToRow serializes arrays for SeaTable", () => {
   const row = mapTaskToRow({
     id: 9,
+    createdAt: "2026-04-27",
     title: "Serialized task",
     comments: [{ text: "a" }],
     history: [{ type: "created" }],
@@ -83,6 +84,7 @@ test("mapTaskToRow serializes arrays for SeaTable", () => {
   });
 
   assert.equal(row.id, 9);
+  assert.equal(row.created_at, "2026-04-27");
   assert.equal(row.title, "Serialized task");
   assert.equal(row.comments, '[{"text":"a"}]');
   assert.equal(row.history, '[{"type":"created"}]');
@@ -175,6 +177,7 @@ test("tasks api PUT sends SeaTable v2 updates payload", async () => {
           row_id: "row-2",
           row: {
             id: 2,
+            created_at: new Date().toISOString().split("T")[0],
             updated_at: new Date().toISOString().split("T")[0],
             database_id: "db1",
             type: "Прочее",
