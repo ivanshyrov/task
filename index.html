@@ -146,16 +146,16 @@
                 </div>
             </div>
 
-            <!-- Отделы -->
+            <!-- Направления (справочник для задач) -->
             <div id="view-departments" class="view" data-role="admin">
                 <div class="reports-toolbar">
-                    <h2>Отделы</h2>
-                    <button class="btn btn-primary" id="addDepartmentBtn"><i class="fas fa-plus"></i> Добавить отдел</button>
+                    <h2>Направления</h2>
+                    <button class="btn btn-primary" id="addDepartmentBtn"><i class="fas fa-plus"></i> Добавить направление</button>
                 </div>
-                <p style="margin-top:10px; color:var(--text-secondary);">Управление отделами компании.</p>
+                <p style="margin-top:10px; color:var(--text-secondary);">Справочник направлений техподдержки для выбора в заявках.</p>
                 <div class="table-wrapper" style="margin-top:16px;">
                     <table class="data-table">
-                        <thead><tr><th>Название</th><th>Руководитель</th><th>Кол-во сотрудников</th><th>Действия</th></tr></thead>
+                        <thead><tr><th>Название</th><th>Действия</th></tr></thead>
                         <tbody id="departmentsTableBody"></tbody>
                     </table>
                 </div>
@@ -483,25 +483,32 @@
     <!-- Модальное окно добавления отдела -->
     <div id="addDepartmentModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header"><h3>Добавить отдел</h3><button class="close-modal">&times;</button></div>
+            <div class="modal-header"><h3>Добавить направление</h3><button class="close-modal">&times;</button></div>
             <form id="addDepartmentForm">
                 <div class="form-group">
-                    <label>Название отдела *</label>
-                    <input type="text" name="name" id="addDeptName" required placeholder="Например: IT">
-                </div>
-                <div class="form-group">
-                    <label>Руководитель</label>
-                    <select name="head" id="addDeptHead">
-                        <option value="">Выберите руководителя</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Количество сотрудников</label>
-                    <input type="number" name="count" id="addDeptCount" min="0" value="0" placeholder="0">
+                    <label>Название направления *</label>
+                    <input type="text" name="name" id="addDeptName" required placeholder="Например: Интернет и сеть">
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary close-modal-btn">Отмена</button>
                     <button type="submit" class="btn btn-primary">Создать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно редактирования отдела -->
+    <div id="editDepartmentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><h3>Редактировать направление</h3><button class="close-modal">&times;</button></div>
+            <form id="editDepartmentForm" data-row-id="">
+                <div class="form-group">
+                    <label>Название направления *</label>
+                    <input type="text" name="name" id="editDeptName" required placeholder="Например: Интернет и сеть">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary close-modal-btn">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
                 </div>
             </form>
         </div>

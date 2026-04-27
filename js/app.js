@@ -351,7 +351,7 @@
 
     // Стандартные пользователи (для первой инициализации)
     const DEFAULT_USERS = [
-        { username: 'admin', password: 'admin123', role: 'admin', department: 'IT', fullName: 'Администратор Системы', position: 'Главный администратор', email: 'admin@it-sp.ru', phone: '+7 (999) 111-11-11', office: '101' },
+        { username: 'admin', password: 'admin123', role: 'admin', department: 'IT', fullName: 'Администратор Системы', position: 'Главный администратор', email: 'admin@it-sp.ru', phone: '+7 (999) 111-11-11', office: '222' },
         { username: 'director', password: 'director123', role: 'director', department: 'IT', fullName: 'Иванов Сергей Петрович', position: 'Руководитель отдела', email: 'director@it-sp.ru', phone: '+7 (999) 222-22-22', office: '201' },
         { username: 'employee', password: 'employee123', role: 'employee', department: 'IT', fullName: 'Петров Алексей Иванович', position: 'Специалист', email: 'employee@it-sp.ru', phone: '+7 (999) 333-33-33', office: '229' }
     ];
@@ -362,11 +362,8 @@
         { name: 'Шувалов Е.А.', position: 'Начальник IT', department: 'IT', phone: '2-22-76', email: 'shuvalov@it-sp.ru' },
         { name: 'Козлова Д.С.', position: 'Маркетолог', department: 'Маркетинг', phone: '2-22-52', email: 'kozlova@it-sp.ru' }
     ];
-    let departmentsData = [
-        { name: 'IT', head: 'Шувалов Е.А.', count: 8 },
-        { name: 'Маркетинг', head: 'Козлова Д.С.', count: 5 },
-        { name: 'Продажи', head: 'Иванов П.Н.', count: 6 }
-    ];
+    // Локальный справочник направлений (можно редактировать на вкладке "Направления")
+    let departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
 
     // ==================== DOM ====================
     const loginScreen = document.getElementById('loginScreen');
@@ -519,6 +516,17 @@
         } catch (error) {
             console.error('Ошибка чтения сохраненных данных:', error);
         }
+
+        // Нормализация форматов направлений (на случай старых данных/ручных правок).
+        if (Array.isArray(departmentsData)) {
+            departmentsData = departmentsData
+                .map((d) => {
+                    if (typeof d === 'string') return { name: d };
+                    if (d && typeof d === 'object') return { name: String(d.name || '').trim() };
+                    return { name: '' };
+                })
+                .filter((d) => d.name);
+        }
     }
 
     function savePersistedData() {
@@ -529,6 +537,10 @@
             departmentsData,
             currentDatabaseId
         }));
+    }
+
+    function syncDepartmentsFromApi() {
+        // больше не синхронизируем направления с SeaTable — это локальный справочник UI
     }
 
     function refreshTaskRelatedUi() {
@@ -807,7 +819,7 @@
         applyRole(currentUser.role);
         loginScreen.style.display = 'none';
         app.style.display = 'flex';
-        initApp();
+        void initApp();
         resetSessionTimer();
     });
 
@@ -838,8 +850,9 @@
         updateDefaultViewOptions();
     }
 
-    function initApp() {
+    async function initApp() {
         loadPersistedData();
+        syncDepartmentsFromApi();
         let maxId = 0;
         databases.forEach(db => db.tasks.forEach(t => {
             normalizeTask(t);
@@ -848,6 +861,9 @@
         dataLoaded = true;
         nextTaskId = maxId + 1;
         FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
+        // Зафиксировать справочник направлений и другие данные в localStorage,
+        // чтобы после перезагрузки страницы он сохранялся.
+        savePersistedData();
         populateDatabaseSelects();
         populateDepartmentSelects();
         renderTasks();
@@ -1695,22 +1711,40 @@
     function renderDepartments() {
         document.getElementById('departmentsTableBody').innerHTML = departmentsData.map((d, index) => 
             `<tr>
-                <td>${d.name}</td><td>${d.head}</td><td>${d.count}</td>
-                <td><button class="icon-btn delete-department" data-index="${index}" title="Удалить"><i class="fas fa-trash"></i></button></td>
+                <td>${sanitizeHTML(d.name || '')}</td>
+                <td>
+                    <button class="icon-btn edit-department" data-index="${index}" title="Редактировать"><i class="fas fa-edit"></i></button>
+                    <button class="icon-btn delete-department" data-index="${index}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>
+                </td>
             </tr>`
         ).join('');
+        document.querySelectorAll('.edit-department').forEach(btn => btn.addEventListener('click', function() {
+            const idx = parseInt(this.dataset.index);
+            openEditDepartmentModal(idx);
+        }));
         document.querySelectorAll('.delete-department').forEach(btn => btn.addEventListener('click', function() {
             const idx = parseInt(this.dataset.index);
-            const name = departmentsData[idx].name;
-            departmentsData.splice(idx, 1);
-            FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
-            populateDepartmentSelects();
-            renderDepartments();
-            databases.forEach(db => db.tasks = db.tasks.filter(t => t.department !== name));
-            renderTasks();
-            renderBasesList();
-            savePersistedData();
+            const dept = departmentsData[idx];
+            showConfirmModal('Удалить направление?', `Удалить "${dept.name}"?`, async () => {
+                departmentsData = departmentsData.filter((_, i) => i !== idx);
+                FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
+                populateDepartmentSelects();
+                renderDepartments();
+                savePersistedData();
+                showToast('Направление удалено', 'success');
+            });
         }));
+    }
+
+    function openEditDepartmentModal(index) {
+        const dept = departmentsData[index];
+        if (!dept) return;
+        const modal = document.getElementById('editDepartmentModal');
+        const form = document.getElementById('editDepartmentForm');
+        if (!modal || !form) return;
+        form.dataset.index = String(index);
+        document.getElementById('editDeptName').value = dept.name || '';
+        modal.classList.add('show');
     }
 
     // ==================== ПОЛЬЗОВАТЕЛИ ====================
@@ -1943,16 +1977,7 @@
     document.getElementById('addDepartmentBtn')?.addEventListener('click', () => {
         if (!currentUser || currentUser.role !== 'admin') return;
         addDepartmentForm.reset();
-        
-        // Заполняем список руководителей из пользователей
-        if (addDeptHeadSelect) {
-            addDeptHeadSelect.innerHTML = '<option value="">Выберите руководителя</option>' + 
-                users
-                    .filter(u => u.role === 'admin' || u.role === 'director')
-                    .map(u => `<option value="${sanitizeHTML(u.fullName)}">${sanitizeHTML(u.fullName)} (${u.role === 'admin' ? 'Админ' : 'Руководитель'})</option>`)
-                    .join('');
-        }
-        
+
         addDepartmentModal.classList.add('show');
     });
     
@@ -1962,27 +1987,50 @@
         
         const formData = new FormData(addDepartmentForm);
         const name = (formData.get('name') || '').trim();
-        const head = (formData.get('head') || '').trim();
-        const count = parseInt(formData.get('count') || '0');
         
         if (!name) {
-            showToast('Введите название отдела', 'error');
+            showToast('Введите название направления', 'error');
             return;
         }
         
         // Проверка на дубликат
         if (departmentsData.some(d => d.name.toLowerCase() === name.toLowerCase())) {
-            showToast('Отдел с таким названием уже существует', 'error');
+            showToast('Такое направление уже существует', 'error');
             return;
         }
-        
-        departmentsData.push({ name, head, count });
+
+        departmentsData.push({ name });
         FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
         populateDepartmentSelects();
         renderDepartments();
         addDepartmentModal.classList.remove('show');
         savePersistedData();
-        showToast(`Отдел "${name}" успешно создан`, 'success');
+        showToast(`Направление "${name}" добавлено`, 'success');
+    });
+
+    const editDepartmentForm = document.getElementById('editDepartmentForm');
+    const editDepartmentModal = document.getElementById('editDepartmentModal');
+    editDepartmentForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!currentUser || currentUser.role !== 'admin') return;
+        const formData = new FormData(editDepartmentForm);
+        const name = (formData.get('name') || '').trim();
+        if (!name) { showToast('Введите название направления', 'error'); return; }
+
+        const idx = Number(editDepartmentForm.dataset.index || -1);
+        const prev = departmentsData[idx];
+        if (!prev) return;
+
+        const snapshot = JSON.parse(JSON.stringify(prev));
+        prev.name = name;
+        FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
+        populateDepartmentSelects();
+        renderDepartments();
+        savePersistedData();
+        editDepartmentModal?.classList.remove('show');
+
+        // Локально, без синхронизации
+        showToast('Направление обновлено', 'success');
     });
 
     // Добавление пользователя (admin)
@@ -2305,7 +2353,7 @@
         applyRole(currentUser.role);
         loginScreen.style.display = 'none';
         app.style.display = 'flex';
-        initApp();
+        void initApp();
         resetSessionTimer();
     }
 
