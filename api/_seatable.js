@@ -181,9 +181,123 @@ async function seatableRequest(accessToken, url, options = {}) {
   throw lastError || new Error("SeaTable request failed after all retry attempts");
 }
 
-// mapping and helpers (unchanged)...
-// paste your existing mapRowToTask, mapTaskToRow, buildUpdateRequestBody, buildDeleteRequestBody here
-// and export them with seatableRequest
+function mapRowToTask(row) {
+  // POST/GET v2 responses can vary; sometimes the returned object contains
+  // a `rows` array or a wrapped `row`.
+  const maybeWrapped = row && typeof row === "object" ? row : {};
+  if (Array.isArray(maybeWrapped.rows) && maybeWrapped.rows.length === 1) {
+    row = maybeWrapped.rows[0];
+  }
+
+  // SeaTable can return row data in different shapes depending on version/endpoint:
+  // - flat: { _id, id, title, ... }
+  // - wrapped: { _id, row: { id, title, ... } }
+  const wrapper = row || {};
+  const source = (wrapper && typeof wrapper === "object" && wrapper.row && typeof wrapper.row === "object") ? wrapper.row : wrapper;
+  const parseJsonField = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== "string" || !value.trim()) return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+  return {
+    row_id: wrapper._id || source._id || "",
+    id: Number((source.id ?? source.ID ?? 0) || 0),
+    createdAt: source.created_at || "",
+    updatedAt: source.updated_at || "",
+    databaseId: source.database_id || "db1",
+    type: source.type || "",
+    title: source.title || "",
+    department: source.department || "",
+    description: source.description || "",
+    author: source.author || "",
+    assignee: source.assignee || "",
+    office: source.office || "",
+    phone: source.phone || "",
+    priority: source.priority || "Средний",
+    status: source.status || "Новая",
+    deadline: source.deadline || "",
+    slaDays: Number(source.sla_days || 3),
+    assignedAt: source.assigned_at || "",
+    inProgressAt: source.in_progress_at || "",
+    reviewAt: source.review_at || "",
+    closedAt: source.closed_at || "",
+    rejectedAt: source.rejected_at || "",
+    rejectedReason: source.rejected_reason || "",
+    report: source.report || "",
+    comments: parseJsonField(source.comments),
+    history: parseJsonField(source.history),
+    attachments: parseJsonField(source.attachments),
+  };
+}
+
+function mapTaskToRow(task) {
+  const idNum = Number(task?.id);
+  const createdAt = task.createdAt || task.created_at || new Date().toISOString().split('T')[0];
+  return {
+    ...(Number.isFinite(idNum) ? { id: idNum } : {}),
+    created_at: createdAt,
+    updated_at: task.updatedAt || new Date().toISOString().split('T')[0],
+    database_id: task.databaseId || "db1",
+    type: task.type || "",
+    title: task.title || "",
+    department: task.department || "",
+    description: task.description || "",
+    author: task.author || "",
+    assignee: task.assignee || "",
+    office: task.office || "",
+    phone: task.phone || "",
+    priority: task.priority || "Средний",
+    status: task.status || "Новая",
+    deadline: task.deadline || "",
+    sla_days: Number(task.slaDays || 3),
+    assigned_at: task.assignedAt || "",
+    in_progress_at: task.inProgressAt || "",
+    review_at: task.reviewAt || "",
+    closed_at: task.closedAt || "",
+    rejected_at: task.rejectedAt || "",
+    rejected_reason: task.rejectedReason || "",
+    report: task.report || "",
+    comments: JSON.stringify(Array.isArray(task.comments) ? task.comments : []),
+    history: JSON.stringify(Array.isArray(task.history) ? task.history : []),
+    attachments: JSON.stringify(Array.isArray(task.attachments) ? task.attachments : []),
+  };
+}
+
+function buildUpdateRequestBody({ isV2, tableName, rowId, row }) {
+  if (!rowId) {
+    throw new Error("rowId is required for update body");
+  }
+
+  return isV2
+    ? {
+        table_name: tableName,
+        updates: [{ row_id: rowId, row }],
+      }
+    : {
+        row_id: rowId,
+        row,
+      };
+}
+
+function buildDeleteRequestBody({ isV2, tableName, rowId }) {
+  if (!rowId) {
+    throw new Error("rowId is required for delete body");
+  }
+
+  return isV2
+    ? {
+        table_name: tableName,
+        row_ids: [rowId],
+      }
+    : {
+        row_id: rowId,
+      };
+}
 
 module.exports = {
   buildDeleteRequestBody,
