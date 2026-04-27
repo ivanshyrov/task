@@ -205,6 +205,50 @@
         }
     }
 
+    async function syncTasksForDirectionRename(oldName, newName) {
+        if (!oldName || !newName || oldName === newName) return;
+
+        const toUpdate = [];
+        databases.forEach(db => db.tasks.forEach(t => {
+            let changed = false;
+            if (t.department === oldName) {
+                t.department = newName;
+                changed = true;
+            }
+            // В некоторых данных "type" дублирует направление (мы так создаём новые заявки).
+            if (t.type === oldName) {
+                t.type = newName;
+                changed = true;
+            }
+            if (changed) toUpdate.push(t);
+        }));
+
+        if (!toUpdate.length) return;
+
+        refreshTaskRelatedUi();
+
+        let syncFailed = false;
+        for (const task of toUpdate) {
+            const rowId = task.row_id || taskRowMap.get(task.id);
+            if (!rowId) continue;
+            try {
+                await apiRequest(`${API_BASE}/${task.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ ...task, row_id: rowId, id: task.id })
+                });
+            } catch (err) {
+                syncFailed = true;
+                console.error('Не удалось синхронизировать направление в задаче', err);
+            }
+        }
+
+        if (syncFailed) {
+            setSyncBanner('Часть задач не удалось синхронизировать после изменения направления.', true);
+        } else {
+            setSyncBanner('Направления в задачах обновлены и синхронизированы с SeaTable.');
+        }
+    }
+
     async function addUser(userData) {
         if (findUserByUsername(userData.username)) {
             return { success: false, error: 'Пользователь с таким логином уже существует' };
@@ -337,6 +381,7 @@
         'Перевести из PDF в Word',
         'Идеи и предложения'
     ];
+    const FALLBACK_DIRECTION_ON_DELETE = 'Идеи и предложения';
     let FULL_DEPARTMENTS = [...SUPPORT_DIRECTIONS];
 
     let currentDatabaseId = 'db1';
@@ -503,18 +548,26 @@
 
     function loadPersistedData() {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return;
+        if (!raw) {
+            departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
+            return;
+        }
         try {
             const parsed = JSON.parse(raw);
             if (!Array.isArray(parsed.databases)) return;
             databases.splice(0, databases.length, ...parsed.databases);
             if (Array.isArray(parsed.employeesData)) employeesData = parsed.employeesData;
-            if (Array.isArray(parsed.departmentsData)) departmentsData = parsed.departmentsData;
+            if (Array.isArray(parsed.departmentsData)) {
+                departmentsData = parsed.departmentsData;
+            } else {
+                departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
+            }
             if (parsed.currentDatabaseId && databases.some(d => d.id === parsed.currentDatabaseId)) {
                 currentDatabaseId = parsed.currentDatabaseId;
             }
         } catch (error) {
             console.error('Ошибка чтения сохраненных данных:', error);
+            departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
         }
 
         // Нормализация форматов направлений (на случай старых данных/ручных правок).
@@ -819,7 +872,11 @@
         applyRole(currentUser.role);
         loginScreen.style.display = 'none';
         app.style.display = 'flex';
-        void initApp();
+        await initApp();
+        if (currentUser.role === 'employee') {
+            switchView('tasks');
+            openQuickTaskBtn.click();
+        }
         resetSessionTimer();
     });
 
@@ -1726,12 +1783,24 @@
             const idx = parseInt(this.dataset.index);
             const dept = departmentsData[idx];
             showConfirmModal('Удалить направление?', `Удалить "${dept.name}"?`, async () => {
+                const deletedName = dept.name;
+                const fallback = deletedName === FALLBACK_DIRECTION_ON_DELETE
+                    ? (SUPPORT_DIRECTIONS.find(d => d !== deletedName) || 'Идеи и предложения')
+                    : FALLBACK_DIRECTION_ON_DELETE;
+
+                try {
+                    // Сначала переназначаем все задачи, где было удаляемое направление.
+                    await syncTasksForDirectionRename(deletedName, fallback);
+                } catch (error) {
+                    setSyncBanner(`Не удалось переназначить задачи перед удалением направления: ${error.message}`, true);
+                    return;
+                }
                 departmentsData = departmentsData.filter((_, i) => i !== idx);
                 FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
                 populateDepartmentSelects();
                 renderDepartments();
                 savePersistedData();
-                showToast('Направление удалено', 'success');
+                showToast(`Направление удалено (задачи перенесены в "${fallback}")`, 'success');
             });
         }));
     }
@@ -2022,6 +2091,7 @@
         if (!prev) return;
 
         const snapshot = JSON.parse(JSON.stringify(prev));
+        const oldName = prev.name;
         prev.name = name;
         FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
         populateDepartmentSelects();
@@ -2029,8 +2099,18 @@
         savePersistedData();
         editDepartmentModal?.classList.remove('show');
 
-        // Локально, без синхронизации
+        // Локально + обновление задач и синхронизация с SeaTable
         showToast('Направление обновлено', 'success');
+        try {
+            await syncTasksForDirectionRename(oldName, name);
+        } catch (error) {
+            Object.assign(prev, snapshot);
+            FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
+            populateDepartmentSelects();
+            renderDepartments();
+            savePersistedData();
+            setSyncBanner(`Не удалось применить изменение направления к задачам: ${error.message}`, true);
+        }
     });
 
     // Добавление пользователя (admin)
