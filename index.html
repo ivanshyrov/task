@@ -82,14 +82,14 @@
                         <p>Создание и контроль выполнения задач</p>
                     </div>
                     <div class="actions">
-                        <button class="btn btn-primary" id="openQuickTaskBtn"><i class="fas fa-plus"></i> Новая задача</button>
+                        <button class="btn btn-primary" id="openQuickTaskBtn"><i class="fas fa-plus"></i> НОВАЯ ЗАДАЧА</button>
                         <button class="btn btn-outline" id="exportTasksBtn"><i class="fas fa-download"></i> Экспорт в Excel</button>
                     </div>
                 </div>
                 <div class="tasks-toolbar">
                     <div class="filters">
                         <select id="filterDatabase" class="filter-select" data-role="admin,director"></select>
-                        <select id="filterDepartment" class="filter-select"><option value="">Все отделы</option></select>
+                        <select id="filterDepartment" class="filter-select"><option value="">Все направления</option></select>
                         <select id="filterPriority" class="filter-select">
                             <option value="">Все приоритеты</option>
                             <option value="Высокий">Высокий</option>
@@ -105,7 +105,7 @@
                             <option value="Закрыта">Закрыта</option>
                             <option value="Отклонена">Отклонена</option>
                         </select>
-                        <input type="date" id="filterDate" class="filter-date" placeholder="Дата создания">
+                        <input type="date" id="filterDate" class="filter-date" placeholder="Крайний срок">
                         <button class="btn btn-outline btn-small" id="setTodayFilterBtn">Сегодня</button>
                         <input type="text" id="searchTask" class="filter-search" placeholder="Поиск по описанию...">
                         <select id="sortTasks" class="filter-select">
@@ -170,7 +170,7 @@
                 <p style="margin-top:10px; color:var(--text-secondary);">Управление учётными записями. Новые пользователи получают роль «Сотрудник».</p>
                 <div class="table-wrapper" style="margin-top:16px;">
                     <table class="data-table">
-                        <thead><tr><th>Логин</th><th>ФИО</th><th>Роль</th><th>Отдел</th><th>Email</th><th>Телефон</th><th>Действия</th></tr></thead>
+                        <thead><tr><th>Логин</th><th>ФИО</th><th>Роль</th><th>Отдел</th><th>Email</th><th>Телефон</th><th>Кабинет</th><th>Действия</th></tr></thead>
                         <tbody id="usersTableBody"></tbody>
                     </table>
                 </div>
@@ -308,37 +308,24 @@
         <div class="modal-content">
             <div class="modal-header"><h3>Новая заявка</h3><button class="close-modal">&times;</button></div>
             <form id="quickTaskForm">
+                <input type="hidden" name="database">
+                <div class="form-group">
+                    <label>Направление техподдержки *</label>
+                    <input name="department" list="supportDirectionsList" required placeholder="Выберите или начните вводить направление">
+                    <datalist id="supportDirectionsList"></datalist>
+                </div>
+                <div class="form-group"><label>Описание заявки *</label><textarea name="description" rows="4" required></textarea></div>
                 <div class="form-row">
-                    <div class="form-group"><label>База</label><select name="database" required></select></div>
-                    <div class="form-group"><label>Отдел *</label><select name="department" required></select></div>
+                    <div class="form-group"><label>Крайний срок</label><input type="date" name="deadline" id="quickTaskDeadline"></div>
+                    <div class="form-group"><label>Приоритет *</label><select name="priority" required><option value="Критический">Критический</option><option value="Высокий">Высокий</option><option value="Средний">Средний</option><option value="Низкий" selected>Низкий</option></select></div>
+                </div>
+                <div class="form-group">
+                    <label>Вложение</label>
+                    <input type="file" name="attachment" id="quickTaskAttachmentInput">
                 </div>
                 <div class="form-row">
-                    <div class="form-group">
-                        <label>Тип заявки *</label>
-                        <select name="type" required>
-                            <option value="Инцидент">Инцидент</option>
-                            <option value="Доступ">Доступ</option>
-                            <option value="ПО">ПО</option>
-                            <option value="Оборудование">Оборудование</option>
-                            <option value="Прочее">Прочее</option>
-                        </select>
-                    </div>
-                    <div class="form-group"><label>Тема *</label><input name="title" required></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label>Приоритет *</label><select name="priority" required><option value="Критический">Критический</option><option value="Высокий">Высокий</option><option value="Средний" selected>Средний</option><option value="Низкий">Низкий</option></select></div>
-                    <div class="form-group">
-                        <label>Крайний срок</label>
-                        <div style="display:flex; gap:8px;">
-                            <input type="date" name="deadline" id="quickTaskDeadline" style="flex:1;">
-                            <button type="button" class="btn btn-outline btn-small" id="setTodayDeadlineBtn">Сегодня</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group"><label>Описание *</label><textarea name="description" rows="4" required></textarea></div>
-                <div class="form-row">
-                    <div class="form-group"><label>Кабинет</label><input name="office"></div>
-                    <div class="form-group"><label>Телефон</label><input name="phone"></div>
+                    <div class="form-group"><label>Кабинет</label><input name="office" readonly></div>
+                    <div class="form-group"><label>Телефон</label><input name="phone" readonly></div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary close-modal-btn">Отмена</button>
@@ -449,6 +436,10 @@
                         <label>Телефон</label>
                         <input type="text" name="phone" placeholder="+7 (___) ___-__-__">
                     </div>
+                    <div class="form-group">
+                        <label>Кабинет</label>
+                        <input type="text" name="office" placeholder="Например: 229">
+                    </div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary close-modal-btn">Отмена</button>
@@ -493,6 +484,10 @@
                     <div class="form-group">
                         <label>Телефон</label>
                         <input type="text" name="phone" id="editPhone" placeholder="+7 (___) ___-__-__">
+                    </div>
+                    <div class="form-group">
+                        <label>Кабинет</label>
+                        <input type="text" name="office" id="editOffice" placeholder="Например: 229">
                     </div>
                 </div>
                 <div class="modal-actions">

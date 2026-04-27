@@ -75,6 +75,7 @@ module.exports = async (req, res) => {
           position: row.position || "",
           email: row.email || "",
           phone: row.phone || "",
+          office: row.office || "",
           passwordHash: row.password_hash || ""
         }));
       } else {
@@ -100,6 +101,7 @@ module.exports = async (req, res) => {
             position: source.position || "",
             email: source.email || "",
             phone: source.phone || "",
+            office: source.office || "",
             passwordHash: source.password_hash || ""
           };
         });
@@ -119,6 +121,7 @@ module.exports = async (req, res) => {
         position: user.position || "",
         email: user.email || "",
         phone: user.phone || "",
+        office: user.office || "",
         password_hash: user.passwordHash || ""
       };
 
@@ -159,7 +162,8 @@ module.exports = async (req, res) => {
           department: user.department,
           position: user.position,
           email: user.email,
-          phone: user.phone
+          phone: user.phone,
+          office: user.office
         }
       });
     }
@@ -214,6 +218,7 @@ module.exports = async (req, res) => {
         position: user.position !== undefined ? user.position : existingUser.position,
         email: user.email !== undefined ? user.email : existingUser.email,
         phone: user.phone !== undefined ? user.phone : existingUser.phone,
+        office: user.office !== undefined ? user.office : existingUser.office,
         ...(user.passwordHash ? { password_hash: user.passwordHash } : {})
       };
 
@@ -240,7 +245,8 @@ module.exports = async (req, res) => {
           String(refreshedUser.department || "") === String(row.department || "") &&
           String(refreshedUser.position || "") === String(row.position || "") &&
           String(refreshedUser.email || "") === String(row.email || "") &&
-          String(refreshedUser.phone || "") === String(row.phone || "");
+          String(refreshedUser.phone || "") === String(row.phone || "") &&
+          String(refreshedUser.office || "") === String(row.office || "");
         if (!userMatches) {
           throw new Error("SeaTable user update verification failed: changes were not applied");
         }

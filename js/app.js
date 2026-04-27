@@ -51,7 +51,8 @@
                     fullName: user.fullName,
                     position: user.position,
                     email: user.email,
-                    phone: user.phone
+                    phone: user.phone,
+                    office: user.office || ''
                 });
             }
             saveUsers();
@@ -75,6 +76,7 @@
                     localUser.position = remoteUser.position || localUser.position;
                     localUser.email = remoteUser.email || localUser.email;
                     localUser.phone = remoteUser.phone || localUser.phone;
+                    localUser.office = remoteUser.office || localUser.office || '';
                 } else {
                     // New user from SeaTable - add with empty passwordHash (cannot login until password is set)
                     users.push({
@@ -85,7 +87,8 @@
                         fullName: remoteUser.fullName || '',
                         position: remoteUser.position || '',
                         email: remoteUser.email || '',
-                        phone: remoteUser.phone || ''
+                        phone: remoteUser.phone || '',
+                        office: remoteUser.office || ''
                     });
                 }
             }
@@ -214,7 +217,8 @@
             fullName: sanitizeHTML(userData.fullName),
             position: sanitizeHTML(userData.position || ''),
             email: sanitizeHTML(userData.email || ''),
-            phone: sanitizeHTML(userData.phone || '')
+            phone: sanitizeHTML(userData.phone || ''),
+            office: sanitizeHTML(userData.office || '')
         };
         users.push(newUser);
         saveUsers();
@@ -240,6 +244,7 @@
         user.department = sanitizeHTML(userData.department || '');
         user.email = sanitizeHTML(userData.email || '');
         user.phone = sanitizeHTML(userData.phone || '');
+        user.office = sanitizeHTML(userData.office || '');
         
         // Если пароль изменён
         if (userData.password && userData.password.trim()) {
@@ -311,7 +316,27 @@
         { id: 1002, createdAt: '2026-04-19', databaseId: 'db1', type: 'ПО', title: 'Подготовить презентацию', department: 'Маркетинг', description: 'Подготовить презентацию', author: 'Козлова Д.С.', assignee: '', office: '310', phone: '2-22-52', priority: 'Средний', status: 'Новая', deadline: '2026-04-28', report: '', comments: [], history: [] }
     );
 
-    let FULL_DEPARTMENTS = ['IT', 'Маркетинг', 'Продажи'];
+    const SUPPORT_DIRECTIONS = [
+        'Информационные системы',
+        'Программное обеспечение',
+        'Принтеры и оргтехника',
+        'Компьютеры, моноблоки, ноутбуки',
+        'ВКС, сопровождение мероприятий',
+        'Интернет и сеть',
+        'Работа с сайтом',
+        'Консультирование',
+        'Пароли и доступ',
+        'Документация и НПА',
+        'Электронная подпись',
+        'Презентации и дизайн',
+        'Содействие в закупках',
+        'Информационная безопасность',
+        'Перенос техники, подготовка нового РМ',
+        'Телефонная связь',
+        'Перевести из PDF в Word',
+        'Идеи и предложения'
+    ];
+    let FULL_DEPARTMENTS = [...SUPPORT_DIRECTIONS];
 
     let currentDatabaseId = 'db1';
     let currentUser = null;
@@ -325,9 +350,9 @@
 
     // Стандартные пользователи (для первой инициализации)
     const DEFAULT_USERS = [
-        { username: 'admin', password: 'admin123', role: 'admin', department: 'IT', fullName: 'Администратор Системы', position: 'Главный администратор', email: 'admin@it-sp.ru', phone: '+7 (999) 111-11-11' },
-        { username: 'director', password: 'director123', role: 'director', department: 'IT', fullName: 'Иванов Сергей Петрович', position: 'Руководитель отдела', email: 'director@it-sp.ru', phone: '+7 (999) 222-22-22' },
-        { username: 'employee', password: 'employee123', role: 'employee', department: 'IT', fullName: 'Петров Алексей Иванович', position: 'Специалист', email: 'employee@it-sp.ru', phone: '+7 (999) 333-33-33' }
+        { username: 'admin', password: 'admin123', role: 'admin', department: 'IT', fullName: 'Администратор Системы', position: 'Главный администратор', email: 'admin@it-sp.ru', phone: '+7 (999) 111-11-11', office: '101' },
+        { username: 'director', password: 'director123', role: 'director', department: 'IT', fullName: 'Иванов Сергей Петрович', position: 'Руководитель отдела', email: 'director@it-sp.ru', phone: '+7 (999) 222-22-22', office: '201' },
+        { username: 'employee', password: 'employee123', role: 'employee', department: 'IT', fullName: 'Петров Алексей Иванович', position: 'Специалист', email: 'employee@it-sp.ru', phone: '+7 (999) 333-33-33', office: '229' }
     ];
 
     let users = [];
@@ -380,6 +405,8 @@
     const headerAvatarIcon = document.getElementById('headerAvatarIcon');
     const setTodayDeadlineBtn = document.getElementById('setTodayDeadlineBtn');
     const quickTaskDeadline = document.getElementById('quickTaskDeadline');
+    const quickTaskAttachmentInput = document.getElementById('quickTaskAttachmentInput');
+    const supportDirectionsList = document.getElementById('supportDirectionsList');
     const orgNameInput = document.getElementById('orgName');
     const themeSelect = document.getElementById('themeSelect');
     const compactModeInput = document.getElementById('compactMode');
@@ -394,6 +421,7 @@
     const toastContainer = document.getElementById('toastContainer');
     const basesListContainer = document.getElementById('basesList'); // элемент списка баз
     const quickFilterButtons = document.querySelectorAll('.quick-filter-btn');
+    const quickFiltersRow = document.querySelector('.quick-filters-row');
     const syncStatusBanner = document.getElementById('syncStatusBanner');
     const addTaskCommentBtn = document.getElementById('addTaskCommentBtn');
     const taskCommentInput = document.getElementById('taskCommentInput');
@@ -585,12 +613,21 @@
         return date.toISOString().split('T')[0];
     }
 
+    function readFileAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('Не удалось прочитать файл вложения'));
+            reader.readAsDataURL(file);
+        });
+    }
+
     function validateTaskShape(task) {
         if (!task.title || !task.title.trim()) return 'Тема заявки обязательна';
         if (!task.description || !task.description.trim()) return 'Описание заявки обязательно';
         if (!PRIORITIES.includes(task.priority)) return 'Некорректный приоритет';
         if (!TASK_STATUSES.includes(task.status)) return 'Некорректный статус';
-        if (!task.department) return 'Отдел обязателен';
+        if (!task.department) return 'Направление техподдержки обязательно';
         if (task.status === 'Назначена' && !task.assignee) return 'Для статуса "Назначена" нужно выбрать исполнителя';
         if (task.status === 'На проверке' && !task.report?.trim()) return 'Для статуса "На проверке" нужен отчёт';
         if (task.status === 'Отклонена' && !task.rejectedReason?.trim()) return 'Для статуса "Отклонена" нужна причина';
@@ -787,6 +824,15 @@
             el.style.display = el.dataset.role.split(',').includes(role) ? '' : 'none';
         });
         openQuickTaskBtn.style.display = (role === 'employee' || role === 'admin' || role === 'director') ? 'flex' : 'none';
+        openQuickTaskBtn.innerHTML = '<i class="fas fa-plus"></i> НОВАЯ ЗАДАЧА';
+        const isEmployee = role === 'employee';
+        exportTasksBtn.style.display = isEmployee ? 'none' : 'inline-flex';
+        filterDepartment.style.display = isEmployee ? 'none' : '';
+        filterDate.style.display = '';
+        setTodayFilterBtn.style.display = isEmployee ? 'none' : 'inline-flex';
+        sortTasks.style.display = isEmployee ? 'none' : '';
+        resetFiltersBtn.style.display = isEmployee ? 'none' : 'inline-flex';
+        if (quickFiltersRow) quickFiltersRow.style.display = isEmployee ? 'none' : 'flex';
         if (filterDatabase) filterDatabase.style.display = (role === 'admin' || role === 'director') ? 'block' : 'none';
         if (reportDatabase) reportDatabase.style.display = (role === 'admin' || role === 'director') ? 'block' : 'none';
         const canBulkDelete = role === 'admin' || role === 'director';
@@ -807,7 +853,7 @@
         }));
         dataLoaded = true;
         nextTaskId = maxId + 1;
-        FULL_DEPARTMENTS = departmentsData.map(d => d.name);
+        FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
         populateDatabaseSelects();
         populateDepartmentSelects();
         renderTasks();
@@ -841,7 +887,7 @@
 
     // ==================== SELECT'Ы ====================
     function populateDatabaseSelects() {
-        [filterDatabase, document.querySelector('#quickTaskForm select[name="database"]'), reportDatabase].forEach(select => {
+        [filterDatabase, reportDatabase].forEach(select => {
             if (!select) return;
             select.innerHTML = '';
             databases.forEach(db => {
@@ -853,28 +899,28 @@
         });
         if (filterDatabase) filterDatabase.value = currentDatabaseId;
         if (reportDatabase) reportDatabase.value = currentDatabaseId;
+        const quickTaskDatabaseInput = quickTaskForm?.querySelector('input[name="database"]');
+        if (quickTaskDatabaseInput) quickTaskDatabaseInput.value = currentDatabaseId;
     }
 
     function populateDepartmentSelects() {
         if (filterDepartment) {
             const deptsInTasks = new Set();
             databases.forEach(db => db.tasks.forEach(t => deptsInTasks.add(t.department)));
-            filterDepartment.innerHTML = '<option value="">Все отделы</option>';
+            filterDepartment.innerHTML = '<option value="">Все направления</option>';
             [...deptsInTasks].filter(d => d).sort().forEach(dept => {
                 const opt = document.createElement('option');
                 opt.value = dept; opt.textContent = dept;
                 filterDepartment.appendChild(opt);
             });
         }
-        const formSelect = document.querySelector('#quickTaskForm select[name="department"]');
-        if (formSelect) {
-            formSelect.innerHTML = '';
+        if (supportDirectionsList) {
+            supportDirectionsList.innerHTML = '';
             FULL_DEPARTMENTS.forEach(dept => {
                 const opt = document.createElement('option');
-                opt.value = dept; opt.textContent = dept;
-                formSelect.appendChild(opt);
+                opt.value = dept;
+                supportDirectionsList.appendChild(opt);
             });
-            if (formSelect.options.length > 0) formSelect.value = formSelect.options[0].value;
         }
     }
 
@@ -896,7 +942,7 @@
         if (filterDepartment.value) tasks = tasks.filter(t => t.department === filterDepartment.value);
         if (filterPriority.value) tasks = tasks.filter(t => t.priority === filterPriority.value);
         if (filterStatus.value) tasks = tasks.filter(t => t.status === filterStatus.value);
-        if (filterDate.value) tasks = tasks.filter(t => t.createdAt === filterDate.value);
+        if (filterDate.value) tasks = tasks.filter(t => t.deadline === filterDate.value);
         if (searchTask.value) {
             const q = searchTask.value.toLowerCase();
             tasks = tasks.filter(t => t.description.toLowerCase().includes(q) || (t.title || '').toLowerCase().includes(q));
@@ -1278,6 +1324,10 @@
         draft.office = f.office.value;
         draft.phone = f.phone.value;
         draft.report = f.report.value;
+        if (draft.report.trim()) {
+            draft.status = 'Закрыта';
+            f.status.value = 'Закрыта';
+        }
         draft.rejectedReason = f.rejectedReason.value.trim();
         draft.slaDays = draft.slaDays || SLA_DAYS_BY_PRIORITY[draft.priority] || 3;
         if (!draft.deadline) draft.deadline = getDateWithOffset(draft.slaDays);
@@ -1326,34 +1376,52 @@
         const db = databases.find(d => d.id === dbId);
         if (!db) { quickTaskForm.dataset.submitting = 'false'; return false; }
 
-        const dept = formData.get('department');
-        if (!dept) { showToast('Выберите отдел', 'warning'); quickTaskForm.dataset.submitting = 'false'; return false; }
-        const title = (formData.get('title') || '').trim();
-        if (!title) { showToast('Введите тему заявки', 'warning'); quickTaskForm.dataset.submitting = 'false'; return false; }
+        const dept = (formData.get('department') || '').trim();
+        if (!dept) { showToast('Выберите направление техподдержки', 'warning'); quickTaskForm.dataset.submitting = 'false'; return false; }
 
-        const description = formData.get('description').trim();
+        const description = (formData.get('description') || '').trim();
         if (!description) {
-            showToast('Введите описание задачи', 'warning');
+            showToast('Введите описание заявки', 'warning');
             quickTaskForm.dataset.submitting = 'false';
             return false;
+        }
+
+        const userProfile = findUserByUsername(currentUser.username) || currentUser;
+        const priority = formData.get('priority') || 'Низкий';
+        const attachment = quickTaskAttachmentInput?.files?.[0] || null;
+        let initialAttachments = [];
+        if (attachment) {
+            try {
+                const dataUrl = await readFileAsDataUrl(attachment);
+                initialAttachments = [{
+                    name: attachment.name,
+                    dataUrl,
+                    author: currentUser.fullName,
+                    createdAt: new Date().toISOString()
+                }];
+            } catch (attachmentError) {
+                showToast(attachmentError.message, 'error');
+                quickTaskForm.dataset.submitting = 'false';
+                return false;
+            }
         }
 
         const newTask = {
             createdAt: new Date().toISOString().split('T')[0],
             updatedAt: new Date().toISOString().split('T')[0],
             databaseId: dbId,
-            type: formData.get('type') || 'Прочее',
-            title,
+            type: dept,
+            title: `Заявка: ${dept}`,
             department: dept,
             description: description,
             author: currentUser.fullName,
             assignee: '',
-            office: formData.get('office') || '—',
-            phone: formData.get('phone') || '—',
-            priority: formData.get('priority'),
+            office: userProfile.office || '—',
+            phone: userProfile.phone || '—',
+            priority,
             status: 'Новая',
             deadline: formData.get('deadline') || '',
-            slaDays: SLA_DAYS_BY_PRIORITY[formData.get('priority')] || 3,
+            slaDays: SLA_DAYS_BY_PRIORITY[priority] || 3,
             assignedAt: '',
             inProgressAt: '',
             reviewAt: '',
@@ -1363,9 +1431,9 @@
             report: '',
             comments: [],
             history: [],
-            attachments: []
+            attachments: initialAttachments
         };
-        if (!newTask.deadline) newTask.deadline = getDateWithOffset(newTask.slaDays);
+        if (!newTask.deadline) newTask.deadline = getDateWithOffset(3);
         const validationError = validateTaskShape(newTask);
         if (validationError) {
             showToast(validationError, 'error');
@@ -1386,7 +1454,12 @@
                 refreshTaskRelatedUi();
             }
             quickTaskForm.reset();
-            document.querySelector('#quickTaskForm select[name="database"]').value = currentDatabaseId;
+            quickTaskForm.querySelector('input[name="database"]').value = currentDatabaseId;
+            quickTaskForm.querySelector('input[name="department"]').value = '';
+            quickTaskDeadline.value = getDateWithOffset(3);
+            quickTaskForm.querySelector('select[name="priority"]').value = 'Низкий';
+            quickTaskForm.querySelector('input[name="office"]').value = userProfile.office || '';
+            quickTaskForm.querySelector('input[name="phone"]').value = userProfile.phone || '';
             showToast(`Задача #${newTask.id} успешно создана`, 'success');
             setSyncBanner('Изменения сохранены в SeaTable.');
             return true;
@@ -1453,7 +1526,7 @@
     setTodayFilterBtn.addEventListener('click', () => {
         filterDate.value = new Date().toISOString().split('T')[0]; renderTasks();
     });
-    setTodayDeadlineBtn.addEventListener('click', () => {
+    setTodayDeadlineBtn?.addEventListener('click', () => {
         quickTaskDeadline.value = new Date().toISOString().split('T')[0];
     });
     exportTasksBtn.addEventListener('click', () => {
@@ -1531,7 +1604,8 @@
             position: document.getElementById('profilePosition').value.trim(),
             email: document.getElementById('profileEmail').value.trim(),
             phone: document.getElementById('profilePhone').value.trim(),
-            department: currentUser.department || ''
+            department: currentUser.department || '',
+            office: currentUser.office || ''
         });
 
         if (!result.success) {
@@ -1624,7 +1698,7 @@
             const idx = parseInt(this.dataset.index);
             const name = departmentsData[idx].name;
             departmentsData.splice(idx, 1);
-            FULL_DEPARTMENTS = departmentsData.map(d => d.name);
+            FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
             populateDepartmentSelects();
             renderDepartments();
             databases.forEach(db => db.tasks = db.tasks.filter(t => t.department !== name));
@@ -1647,6 +1721,7 @@
                 <td>${sanitizeHTML(u.department || '—')}</td>
                 <td>${sanitizeHTML(u.email || '—')}</td>
                 <td>${sanitizeHTML(u.phone || '—')}</td>
+                <td>${sanitizeHTML(u.office || '—')}</td>
                 <td>
                     ${u.username !== 'admin' 
                         ? `<button class="icon-btn edit-user-btn" data-username="${sanitizeHTML(u.username)}" title="Редактировать"><i class="fas fa-edit"></i></button>
@@ -1692,6 +1767,7 @@
         document.getElementById('editDepartment').value = user.department || '';
         document.getElementById('editEmail').value = user.email || '';
         document.getElementById('editPhone').value = user.phone || '';
+        document.getElementById('editOffice').value = user.office || '';
         document.getElementById('editPassword').value = '';
         
         // Сохраняем оригинальный логин для поиска
@@ -1896,7 +1972,7 @@
         }
         
         departmentsData.push({ name, head, count });
-        FULL_DEPARTMENTS = departmentsData.map(d => d.name);
+        FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
         populateDepartmentSelects();
         renderDepartments();
         addDepartmentModal.classList.remove('show');
@@ -1932,6 +2008,7 @@
         const position = (formData.get('position') || '').trim();
         const email = (formData.get('email') || '').trim();
         const phone = (formData.get('phone') || '').trim();
+        const office = (formData.get('office') || '').trim();
         
         if (!username || !password || !fullName) {
             showToast('Заполните обязательные поля (логин, пароль, ФИО)', 'error');
@@ -1942,7 +2019,7 @@
             return;
         }
         
-        const result = await addUser({ username, password, fullName, department, position, email, phone });
+        const result = await addUser({ username, password, fullName, department, position, email, phone, office });
         if (result.success) {
             addUserModal.classList.remove('show');
             renderUsers();
@@ -1978,13 +2055,14 @@
         const position = (formData.get('position') || '').trim();
         const email = (formData.get('email') || '').trim();
         const phone = (formData.get('phone') || '').trim();
+        const office = (formData.get('office') || '').trim();
         
         if (!username || !fullName) {
             showToast('Заполните обязательные поля (логин, ФИО)', 'error');
             return;
         }
         
-        const result = await editUser(originalUsername, { username, password, fullName, department, position, email, phone });
+        const result = await editUser(originalUsername, { username, password, fullName, department, position, email, phone, office });
         if (result.success) {
             editUserModal.classList.remove('show');
             renderUsers();
@@ -2005,7 +2083,15 @@
             sidebar.classList.remove('open');
         }));
         openQuickTaskBtn.addEventListener('click', () => {
-            document.querySelector('#quickTaskForm select[name="database"]').value = currentDatabaseId;
+            const userProfile = findUserByUsername(currentUser.username) || currentUser;
+            quickTaskForm.querySelector('input[name="database"]').value = currentDatabaseId;
+            quickTaskForm.querySelector('input[name="department"]').value = '';
+            quickTaskForm.querySelector('textarea[name="description"]').value = '';
+            quickTaskForm.querySelector('select[name="priority"]').value = 'Низкий';
+            quickTaskForm.querySelector('input[name="deadline"]').value = getDateWithOffset(3);
+            quickTaskForm.querySelector('input[name="office"]').value = userProfile.office || '';
+            quickTaskForm.querySelector('input[name="phone"]').value = userProfile.phone || '';
+            if (quickTaskAttachmentInput) quickTaskAttachmentInput.value = '';
             quickTaskForm.dataset.submitting = 'false';
             quickTaskModal.classList.add('show');
         });
@@ -2022,6 +2108,10 @@
             e.preventDefault();
             const updated = await updateTaskFromModal();
             if (updated) taskDetailModal.classList.remove('show');
+        });
+        taskDetailForm.report?.addEventListener('input', () => {
+            if (!taskDetailForm.report.value.trim()) return;
+            taskDetailForm.status.value = 'Закрыта';
         });
         logoutBtn.addEventListener('click', () => {
             logoutUser();

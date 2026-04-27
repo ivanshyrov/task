@@ -319,6 +319,7 @@ test("users api PUT finds row by username and sends SeaTable v2 updates payload"
               position: "",
               email: "",
               phone: "",
+              office: "229",
             },
           ],
         };
@@ -335,6 +336,7 @@ test("users api PUT finds row by username and sends SeaTable v2 updates payload"
               position: "",
               email: "new@example.com",
               phone: "",
+              office: "101",
             },
           ],
         };
@@ -357,6 +359,7 @@ test("users api PUT finds row by username and sends SeaTable v2 updates payload"
           department: "Support",
           role: "employee",
           email: "new@example.com",
+          office: "101",
         },
       },
     };
@@ -381,6 +384,7 @@ test("users api PUT finds row by username and sends SeaTable v2 updates payload"
             position: "",
             email: "new@example.com",
             phone: "",
+            office: "101",
           },
         },
       ],
