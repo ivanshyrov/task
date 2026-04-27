@@ -8,7 +8,7 @@ function assertEnv() {
 }
 
 function getServerBase() {
-  const base = process.env.SEATABLE_SERVER || "https://seatable.spyanao.ru";
+  const base = process.env.SEATABLE_SERVER || "https://cloud.seatable.io";
   return base.replace(/\/+$/, "");
 }
 
@@ -19,9 +19,6 @@ async function getAppAccessToken() {
     serverBase: getServerBase(),
     baseUuidPresent: Boolean(process.env.SEATABLE_BASE_UUID),
   });
-  // #region agent log
-  fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H1',location:'api/_seatable.js:getAppAccessToken:start',message:'Auth request start',data:{serverBase:getServerBase()},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   
   // Для cloud.seatable.io используем GET с Authorization header
   const serverBase = getServerBase();
@@ -48,10 +45,6 @@ async function getAppAccessToken() {
     console.log("[seatable] auth response (POST)", { status: response.status });
   }
 
-  // #region agent log
-  fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H2',location:'api/_seatable.js:getAppAccessToken:response',message:'Auth response',data:{status:response.status,useGetAuth},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
   if (response.ok) return response.json();
 
   const body = await response.text();
@@ -69,14 +62,8 @@ function getRowsBaseUrl(accessMeta) {
   // SeaTable Cloud returns dtable_server with "/api-gateway".
   // For cloud we must use v2 endpoints, for self-hosted v1 is still common.
   if (dtableServer.includes("/api-gateway")) {
-    // #region agent log
-    fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H3',location:'api/_seatable.js:getRowsBaseUrl:cloud',message:'Using cloud rows base URL',data:{dtableServer,usesV2:true,dtableUuid},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return `${dtableServer}/api/v2/dtables/${dtableUuid}`;
   }
-  // #region agent log
-  fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H3',location:'api/_seatable.js:getRowsBaseUrl:selfhosted',message:'Using self-hosted rows base URL',data:{dtableServer,usesV2:false,dtableUuid},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   return `${dtableServer}/api/v1/dtables/${dtableUuid}`;
 }
 
@@ -96,14 +83,8 @@ async function seatableRequest(accessToken, url, options = {}) {
   const fallbackScheme = preferBearer ? "Token" : "Bearer";
 
   let response = await makeRequest(primaryScheme);
-  // #region agent log
-  fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H4',location:'api/_seatable.js:seatableRequest:primary',message:'Rows request with primary auth scheme',data:{status:response.status,url,scheme:primaryScheme},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (response.status === 401 || response.status === 403) {
     response = await makeRequest(fallbackScheme);
-    // #region agent log
-    fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H4',location:'api/_seatable.js:seatableRequest:fallback',message:'Rows request with fallback auth scheme',data:{status:response.status,url,scheme:fallbackScheme},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   }
 
   if (!response.ok) {

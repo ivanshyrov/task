@@ -5,7 +5,7 @@
 
 ## 1) Подготовка SeaTable
 
-Создайте таблицу `Tasks` в базе SeaTable на `https://seatable.spyanao.ru/` и добавьте поля:
+Создайте таблицу `Tasks` в базе SeaTable на `https://cloud.seatable.io/` и добавьте поля:
 
 - `id` (Number)
 - `created_at`, `updated_at`, `deadline`, `assigned_at`, `in_progress_at`, `review_at`, `closed_at`, `rejected_at` (Date/Text)
@@ -41,7 +41,7 @@ npx vercel dev
 1. Залейте проект в GitHub.
 2. Импортируйте репозиторий в Vercel.
 3. В `Project Settings -> Environment Variables` добавьте:
-   - `SEATABLE_SERVER=https://seatable.spyanao.ru`
+   - `SEATABLE_SERVER=https://cloud.seatable.io`
    - `SEATABLE_API_TOKEN=...`
    - `SEATABLE_BASE_UUID=...`
    - `SEATABLE_TABLE_NAME=Tasks`

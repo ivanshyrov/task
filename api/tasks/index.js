@@ -45,9 +45,6 @@ module.exports = async (req, res) => {
     debug.isV2 = isV2;
     debug.accessMetaHasUuid = Boolean(accessMeta && accessMeta.dtable_uuid);
     debug.accessMetaServer = (accessMeta && accessMeta.dtable_server) || null;
-    // #region agent log
-    fetch('http://127.0.0.1:7614/ingest/dc72bbfa-5e36-411f-bf0b-46fc5bec4a82',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'51bbec'},body:JSON.stringify({sessionId:'51bbec',runId:'run-1',hypothesisId:'H5',location:'api/tasks/index.js:handler',message:'Computed rows URL',data:{method:req.method,baseUrl,rowsUrl:rowsUrlBase,table:TABLE_NAME,view:VIEW_NAME},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     console.log("[tasks] computed", {
       isV2,
       baseUrl,
