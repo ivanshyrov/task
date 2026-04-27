@@ -139,6 +139,68 @@
         return users.find(u => u.username === username);
     }
 
+    function isCurrentUserIdentity(username) {
+        return Boolean(currentUser && currentUser.username === username);
+    }
+
+    function migrateAvatarStorageKey(previousUsername, nextUsername) {
+        if (!previousUsername || !nextUsername || previousUsername === nextUsername) return;
+        const prevKey = `avatar_${previousUsername}`;
+        const nextKey = `avatar_${nextUsername}`;
+        const savedAvatar = localStorage.getItem(prevKey);
+        if (!savedAvatar || localStorage.getItem(nextKey)) return;
+        localStorage.setItem(nextKey, savedAvatar);
+        localStorage.removeItem(prevKey);
+    }
+
+    async function syncTasksForUserRename(oldFullName, newFullName) {
+        if (!oldFullName || !newFullName || oldFullName === newFullName) return;
+
+        const toUpdate = [];
+        databases.forEach(db => db.tasks.forEach(t => {
+            let changed = false;
+            if (t.author === oldFullName) {
+                t.author = newFullName;
+                changed = true;
+            }
+            if (t.assignee === oldFullName) {
+                t.assignee = newFullName;
+                changed = true;
+            }
+            if (changed) {
+                toUpdate.push(t);
+            }
+        }));
+
+        if (!toUpdate.length) return;
+
+        renderTasks();
+        updateStats();
+        savePersistedData();
+
+        let syncFailed = false;
+        for (const task of toUpdate) {
+            const rowId = task.row_id || taskRowMap.get(task.id);
+            if (!rowId) continue;
+            const record = SeaTableAdapter.toRecord(task);
+            try {
+                await apiRequest(`${API_BASE}/${task.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ ...record, row_id: rowId })
+                });
+            } catch (err) {
+                syncFailed = true;
+                console.error('Не удалось синхронизировать обновлённые данные пользователя в задачах', err);
+            }
+        }
+
+        if (syncFailed) {
+            setSyncBanner('Часть задач не удалось синхронизировать после обновления пользователя.', true);
+        } else {
+            setSyncBanner('Данные пользователя и связанные задачи сохранены в SeaTable.');
+        }
+    }
+
     async function addUser(userData) {
         if (findUserByUsername(userData.username)) {
             return { success: false, error: 'Пользователь с таким логином уже существует' };
@@ -165,6 +227,7 @@
         const user = findUserByUsername(username);
         if (!user) return { success: false, error: 'Пользователь не найден' };
         const previousUsername = user.username;
+        const previousFullName = user.fullName;
         
         // Проверка уникальности нового логина
         if (userData.username !== username && findUserByUsername(userData.username)) {
@@ -182,8 +245,15 @@
         if (userData.password && userData.password.trim()) {
             user.passwordHash = await hashPassword(userData.password);
         }
+
+        migrateAvatarStorageKey(previousUsername, user.username);
+        if (isCurrentUserIdentity(previousUsername)) {
+            currentUser = { ...user };
+            updateHeaderAvatar();
+        }
         
         saveUsers();
+        await syncTasksForUserRename(previousFullName, user.fullName);
         void syncUserToSeaTable(user, 'update', previousUsername);
         return { success: true, user };
     }
@@ -1438,49 +1508,22 @@
     document.getElementById('profileForm').addEventListener('submit', async e => {
         e.preventDefault();
         if (!currentUser) return;
+        const result = await editUser(currentUser.username, {
+            username: currentUser.username,
+            password: '',
+            fullName: document.getElementById('profileFullName').value.trim(),
+            position: document.getElementById('profilePosition').value.trim(),
+            email: document.getElementById('profileEmail').value.trim(),
+            phone: document.getElementById('profilePhone').value.trim(),
+            department: currentUser.department || ''
+        });
 
-        const oldName = currentUser.fullName;
-        currentUser.fullName = document.getElementById('profileFullName').value.trim();
-        currentUser.position = document.getElementById('profilePosition').value.trim();
-        currentUser.email = document.getElementById('profileEmail').value.trim();
-        currentUser.phone = document.getElementById('profilePhone').value.trim();
+        if (!result.success) {
+            showToast(result.error, 'error');
+            return;
+        }
 
-        saveUsers();
         renderUsers();
-
-        if (oldName !== currentUser.fullName) {
-            const toUpdate = [];
-            databases.forEach(db => db.tasks.forEach(t => {
-                if (t.author === oldName) {
-                    t.author = currentUser.fullName;
-                    toUpdate.push(t);
-                }
-            }));
-            renderTasks();
-            // Best-effort sync to SeaTable: update all affected tasks.
-            void (async () => {
-                for (const task of toUpdate) {
-                    const rowId = task.row_id || taskRowMap.get(task.id);
-                    if (!rowId) continue;
-                    const record = SeaTableAdapter.toRecord(task);
-                    try {
-                        await apiRequest(`${API_BASE}/${task.id}`, {
-                            method: 'PUT',
-                            body: JSON.stringify({ ...record, row_id: rowId })
-                        });
-                    } catch (err) {
-                        // keep UI responsive; server banner will show on next sync if needed
-                        console.error('Не удалось синхронизировать ФИО в SeaTable', err);
-                    }
-                }
-                setSyncBanner('Изменения сохранены в SeaTable.');
-            })();
-        }
-        try {
-            await syncUserToSeaTable(currentUser, 'update');
-        } catch (err) {
-            console.error('Не удалось синхронизировать профиль с SeaTable', err);
-        }
         showToast('Профиль сохранён', 'success');
         profileModal.classList.remove('show');
     });
