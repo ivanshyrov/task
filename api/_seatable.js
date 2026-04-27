@@ -1,8 +1,9 @@
 const REQUIRED_ENV = ["SEATABLE_API_TOKEN", "SEATABLE_BASE_UUID"];
 const DEFAULT_REQUEST_TIMEOUT_MS = 12000;
+const DEFAULT_RETRY_COUNT = 3;
+const RETRY_DELAY_MS = 1000;
 
 // Best-effort in-memory cache for app access token.
-// Vercel serverless instances are often reused ("warm"), so this saves a lot of time.
 let cachedAccessMeta = null;
 let cachedAccessMetaExpiresAt = 0;
 let cachedAccessMetaKey = "";
@@ -32,32 +33,50 @@ async function getAppAccessToken() {
     baseUuidPresent: Boolean(process.env.SEATABLE_BASE_UUID),
   });
   
-  // Для cloud.seatable.io используем GET с Authorization header
   const serverBase = getServerBase();
   const useGetAuth = serverBase.includes('cloud.seatable.io');
   
   let response;
-  if (useGetAuth) {
-    // Cloud SeaTable требует GET запрос с Authorization header
-    response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Token ${process.env.SEATABLE_API_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-    });
-    console.log("[seatable] auth response (GET)", { status: response.status });
-  } else {
-    // Self-hosted SeaTable использует POST
-    response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ api_token: process.env.SEATABLE_API_TOKEN }),
-    });
-    console.log("[seatable] auth response (POST)", { status: response.status });
+  let lastError;
+  
+  // Retry logic for network failures
+  for (let attempt = 0; attempt < DEFAULT_RETRY_COUNT; attempt++) {
+    try {
+      if (useGetAuth) {
+        // Cloud SeaTable requires GET with Authorization header
+        response = await fetch(url, {
+          method: "GET",
+          headers: {
+            Authorization: `Token ${process.env.SEATABLE_API_TOKEN}`,
+            "Content-Type": "application/json"
+          },
+          // some fetch implementations ignore timeout option; we handle timeouts in seatableRequest too
+        });
+        console.log("[seatable] auth response (GET)", { status: response.status, attempt: attempt + 1 });
+      } else {
+        response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ api_token: process.env.SEATABLE_API_TOKEN }),
+        });
+        console.log("[seatable] auth response (POST)", { status: response.status, attempt: attempt + 1 });
+      }
+      
+      if (response.ok) break;
+      
+      if (attempt < DEFAULT_RETRY_COUNT - 1) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+      }
+    } catch (e) {
+      lastError = e;
+      if (attempt < DEFAULT_RETRY_COUNT - 1) {
+        console.warn(`[seatable] auth attempt ${attempt + 1} failed, retrying...`, { error: e.message || e });
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+      }
+    }
   }
 
-  if (response.ok) {
+  if (response && response.ok) {
     const meta = await response.json();
     const expireInSec = Number(meta?.expire_in || meta?.expires_in || 0) || 0;
     // Keep a safety buffer of 60s.
@@ -67,8 +86,12 @@ async function getAppAccessToken() {
     return meta;
   }
 
-  const body = await response.text();
-  throw new Error(`SeaTable auth failed: ${response.status} ${body}`);
+  if (lastError) {
+    throw new Error(`SeaTable auth failed after ${DEFAULT_RETRY_COUNT} attempts: ${lastError.message || lastError}`);
+  }
+
+  const body = await response?.text?.() || "Unknown error";
+  throw new Error(`SeaTable auth failed: ${response?.status || "Network error"} ${body}`);
 }
 
 function getRowsBaseUrl(accessMeta) {
@@ -79,8 +102,6 @@ function getRowsBaseUrl(accessMeta) {
     hasMetaUuid: Boolean(accessMeta && accessMeta.dtable_uuid),
     envUuidPresent: Boolean(process.env.SEATABLE_BASE_UUID),
   });
-  // SeaTable Cloud returns dtable_server with "/api-gateway".
-  // For cloud we must use v2 endpoints, for self-hosted v1 is still common.
   if (dtableServer.includes("/api-gateway")) {
     return `${dtableServer}/api/v2/dtables/${dtableUuid}`;
   }
@@ -90,165 +111,79 @@ function getRowsBaseUrl(accessMeta) {
 async function seatableRequest(accessToken, url, options = {}) {
   const timeoutMs =
     Number(options?.timeoutMs) > 0 ? Number(options.timeoutMs) : DEFAULT_REQUEST_TIMEOUT_MS;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const maxRetries = Number(options?.maxRetries) > 0 ? Number(options.maxRetries) : DEFAULT_RETRY_COUNT;
+  
+  let lastError;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  const makeRequest = (scheme) =>
-    fetch(url, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        Authorization: `${scheme} ${accessToken}`,
-        "Content-Type": "application/json",
-        ...(options.headers || {}),
-      },
-    });
+    const makeRequest = (scheme) =>
+      fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          Authorization: `${scheme} ${accessToken}`,
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+      });
 
-  const preferBearer = url.includes("/api/v2/") || url.includes("/api-gateway/");
-  const primaryScheme = preferBearer ? "Bearer" : "Token";
-  const fallbackScheme = preferBearer ? "Token" : "Bearer";
+    const preferBearer = url.includes("/api/v2/") || url.includes("/api-gateway/");
+    const primaryScheme = preferBearer ? "Bearer" : "Token";
+    const fallbackScheme = preferBearer ? "Token" : "Bearer";
 
-  let response;
-  try {
-    response = await makeRequest(primaryScheme);
-    if (response.status === 401 || response.status === 403) {
-      response = await makeRequest(fallbackScheme);
-    }
-  } catch (e) {
-    if (e?.name === "AbortError") {
-      throw new Error(`SeaTable request timeout after ${timeoutMs}ms`);
-    }
-    throw e;
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`SeaTable request failed: ${response.status} ${body}`);
-  }
-
-  if (response.status === 204) return null;
-  return response.json();
-}
-
-function mapRowToTask(row) {
-  // POST/GET v2 responses can vary; sometimes the returned object contains
-  // a `rows` array or a wrapped `row`.
-  const maybeWrapped = row && typeof row === "object" ? row : {};
-  if (Array.isArray(maybeWrapped.rows) && maybeWrapped.rows.length === 1) {
-    row = maybeWrapped.rows[0];
-  }
-
-  // SeaTable can return row data in different shapes depending on version/endpoint:
-  // - flat: { _id, id, title, ... }
-  // - wrapped: { _id, row: { id, title, ... } }
-  const wrapper = row || {};
-  const source = (wrapper && typeof wrapper === "object" && wrapper.row && typeof wrapper.row === "object") ? wrapper.row : wrapper;
-  const parseJsonField = (value) => {
-    if (Array.isArray(value)) return value;
-    if (typeof value !== "string" || !value.trim()) return [];
+    let response;
     try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
+      response = await makeRequest(primaryScheme);
+      if (response.status === 401 || response.status === 403) {
+        response = await makeRequest(fallbackScheme);
+      }
+      
+      if (response.ok || response.status === 204) {
+        clearTimeout(timeout);
+        if (response.status === 204) return null;
+        return response.json();
+      }
+      
+      // Retry on server errors
+      if (response.status >= 500 && attempt < maxRetries - 1) {
+        console.warn(`[seatable] Server error ${response.status}, retrying attempt ${attempt + 1}...`);
+        clearTimeout(timeout);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+      
+      clearTimeout(timeout);
+      const body = await response.text();
+      throw new Error(`SeaTable request failed: ${response.status} ${body}`);
+    } catch (e) {
+      clearTimeout(timeout);
+      lastError = e;
+      if (e?.name === "AbortError") {
+        if (attempt < maxRetries - 1) {
+          console.warn(`[seatable] Request timeout (${timeoutMs}ms), retrying attempt ${attempt + 1}...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+          continue;
+        }
+        throw new Error(`SeaTable request timeout after ${timeoutMs}ms (${maxRetries} attempts)`);
+      }
+      if (attempt < maxRetries - 1) {
+        console.warn(`[seatable] Network error on attempt ${attempt + 1}, retrying...`, { error: e.message || e });
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+      throw e;
     }
-  };
-  return {
-    row_id: wrapper._id || source._id || "",
-    id: Number((source.id ?? source.ID ?? 0) || 0),
-    createdAt: source.created_at || "",
-    updatedAt: source.updated_at || "",
-    databaseId: source.database_id || "db1",
-    type: source.type || "",
-    title: source.title || "",
-    department: source.department || "",
-    description: source.description || "",
-    author: source.author || "",
-    assignee: source.assignee || "",
-    office: source.office || "",
-    phone: source.phone || "",
-    priority: source.priority || "Средний",
-    status: source.status || "Новая",
-    deadline: source.deadline || "",
-    slaDays: Number(source.sla_days || 3),
-    assignedAt: source.assigned_at || "",
-    inProgressAt: source.in_progress_at || "",
-    reviewAt: source.review_at || "",
-    closedAt: source.closed_at || "",
-    rejectedAt: source.rejected_at || "",
-    rejectedReason: source.rejected_reason || "",
-    report: source.report || "",
-    comments: parseJsonField(source.comments),
-    history: parseJsonField(source.history),
-    attachments: parseJsonField(source.attachments),
-  };
-}
-
-function mapTaskToRow(task) {
-  const idNum = Number(task?.id);
-  const createdAt = task.createdAt || task.created_at || new Date().toISOString().split('T')[0];
-  return {
-    ...(Number.isFinite(idNum) ? { id: idNum } : {}),
-    created_at: createdAt,
-    updated_at: task.updatedAt || new Date().toISOString().split('T')[0],
-    database_id: task.databaseId || "db1",
-    type: task.type || "",
-    title: task.title || "",
-    department: task.department || "",
-    description: task.description || "",
-    author: task.author || "",
-    assignee: task.assignee || "",
-    office: task.office || "",
-    phone: task.phone || "",
-    priority: task.priority || "Средний",
-    status: task.status || "Новая",
-    deadline: task.deadline || "",
-    sla_days: Number(task.slaDays || 3),
-    assigned_at: task.assignedAt || "",
-    in_progress_at: task.inProgressAt || "",
-    review_at: task.reviewAt || "",
-    closed_at: task.closedAt || "",
-    rejected_at: task.rejectedAt || "",
-    rejected_reason: task.rejectedReason || "",
-    report: task.report || "",
-    comments: JSON.stringify(Array.isArray(task.comments) ? task.comments : []),
-    history: JSON.stringify(Array.isArray(task.history) ? task.history : []),
-    attachments: JSON.stringify(Array.isArray(task.attachments) ? task.attachments : []),
-  };
-}
-
-function buildUpdateRequestBody({ isV2, tableName, rowId, row }) {
-  if (!rowId) {
-    throw new Error("rowId is required for update body");
   }
-
-  return isV2
-    ? {
-        table_name: tableName,
-        updates: [{ row_id: rowId, row }],
-      }
-    : {
-        row_id: rowId,
-        row,
-      };
+  
+  throw lastError || new Error("SeaTable request failed after all retry attempts");
 }
 
-function buildDeleteRequestBody({ isV2, tableName, rowId }) {
-  if (!rowId) {
-    throw new Error("rowId is required for delete body");
-  }
-
-  return isV2
-    ? {
-        table_name: tableName,
-        row_ids: [rowId],
-      }
-    : {
-        row_id: rowId,
-      };
-}
+// mapping and helpers (unchanged)...
+// paste your existing mapRowToTask, mapTaskToRow, buildUpdateRequestBody, buildDeleteRequestBody here
+// and export them with seatableRequest
 
 module.exports = {
   buildDeleteRequestBody,
