@@ -1243,6 +1243,11 @@
         f.status.options[f.status.selectedIndex].disabled = false;
         if (!canAssignTask(task)) f.assignee.disabled = true;
         if (currentUser.role === 'employee' && task.author !== currentUser.fullName) f.status.disabled = true;
+        if (currentUser.role === 'employee') {
+            // Сотрудник не заполняет отчёт и причину отклонения вручную.
+            f.report.disabled = true;
+            f.rejectedReason.disabled = true;
+        }
         document.getElementById('deleteTaskBtn').style.display =
             canDeleteTask(task) ? 'block' : 'none';
         const saveBtn = taskDetailForm.querySelector('button[type="submit"]');
@@ -1324,11 +1329,17 @@
         draft.office = f.office.value;
         draft.phone = f.phone.value;
         draft.report = f.report.value;
+        if (currentUser.role === 'employee') {
+            draft.report = task.report || '';
+            draft.rejectedReason = task.rejectedReason || '';
+        }
         if (draft.report.trim()) {
             draft.status = 'Закрыта';
             f.status.value = 'Закрыта';
         }
-        draft.rejectedReason = f.rejectedReason.value.trim();
+        if (currentUser.role !== 'employee') {
+            draft.rejectedReason = f.rejectedReason.value.trim();
+        }
         draft.slaDays = draft.slaDays || SLA_DAYS_BY_PRIORITY[draft.priority] || 3;
         if (!draft.deadline) draft.deadline = getDateWithOffset(draft.slaDays);
         if (prevStatus !== draft.status) {
