@@ -366,10 +366,6 @@
         { id: 'db1', name: 'Основная', tasks: [] },
         { id: 'db2', name: 'Проекты', tasks: [] }
     ];
-    databases[0].tasks.push(
-        { id: 1001, createdAt: '2026-04-20', databaseId: 'db1', type: 'Инцидент', title: 'Настроить VPN', department: 'IT', description: 'Настроить VPN', author: 'Шувалов Е.А.', assignee: 'Шувалов Е.А.', office: '229', phone: '2-22-76', priority: 'Высокий', status: 'В работе', deadline: '2026-05-01', report: '', comments: [], history: [] },
-        { id: 1002, createdAt: '2026-04-19', databaseId: 'db1', type: 'ПО', title: 'Подготовить презентацию', department: 'Маркетинг', description: 'Подготовить презентацию', author: 'Козлова Д.С.', assignee: '', office: '310', phone: '2-22-52', priority: 'Средний', status: 'Новая', deadline: '2026-04-28', report: '', comments: [], history: [] }
-    );
 
     const SUPPORT_DIRECTIONS = [
         'Информационные системы',
@@ -578,8 +574,21 @@
         }
         try {
             const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed.databases)) return;
-            databases.splice(0, databases.length, ...parsed.databases);
+            if (Array.isArray(parsed.databases)) {
+                const storedDatabases = parsed.databases
+                    .map((db) => ({
+                        id: String(db?.id || '').trim(),
+                        name: String(db?.name || '').trim(),
+                    }))
+                    .filter((db) => db.id && db.name);
+
+                if (storedDatabases.length) {
+                    databases.splice(0, databases.length, ...storedDatabases.map((db) => ({
+                        ...db,
+                        tasks: [],
+                    })));
+                }
+            }
             if (Array.isArray(parsed.employeesData)) employeesData = parsed.employeesData;
             if (Array.isArray(parsed.departmentsData)) {
                 departmentsData = parsed.departmentsData;
@@ -609,7 +618,7 @@
     function savePersistedData() {
         if (!dataLoaded) return;
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            databases,
+            databases: databases.map((db) => ({ id: db.id, name: db.name })),
             employeesData,
             departmentsData,
             currentDatabaseId
