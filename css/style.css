@@ -37,13 +37,10 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
     width:100%;
     height:100%;
     font-style:normal;
-    font-size:1rem;
+    font-size:1.05rem;
     line-height:1;
     user-select:none;
 }
-.control-icon-burger { font-size:1.1rem; }
-.control-icon-role { font-size:1rem; }
-.control-icon-notification { font-size:1rem; }
 .avatar-fallback { font-size:1rem; color:var(--primary); }
 .sidebar { position:fixed; top:0; left:-100%; width:var(--sidebar-width); height:100vh; background:white; box-shadow:var(--shadow); z-index:1000; transition:left 0.3s; border-right:1px solid var(--border); }
 .sidebar.open { left:0; }

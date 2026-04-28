@@ -1,5 +1,15 @@
 {
   "outputDirectory": ".",
+  "rewrites": [
+    {
+      "source": "/api/tasks/:id",
+      "destination": "/api/tasks/[id]"
+    },
+    {
+      "source": "/api/tasks/:id/",
+      "destination": "/api/tasks/[id]"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
