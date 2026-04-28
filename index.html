@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IT-SP · Планировщик задач</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerpolicy="no-referrer">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -42,6 +43,10 @@
                 <h1 class="logo">IT-SP · Планировщик</h1>
             </div>
             <div class="header-right">
+                <div class="health-badge" id="seatableHealthBadge" title="Проверка SeaTable">
+                    <i class="fas fa-circle-notch"></i>
+                    <span id="seatableHealthText">SeaTable...</span>
+                </div>
                 <div class="role-badge" id="roleDisplay" style="cursor:pointer;" title="Выйти" aria-label="Профиль и выход">
                     <i class="fas fa-user-shield" aria-hidden="true"></i>
                     <span id="roleName">Администратор</span>

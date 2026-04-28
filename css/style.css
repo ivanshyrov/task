@@ -21,6 +21,10 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
 .burger-btn:hover { color:var(--primary); background:#f8fafc; border-color:#cbd5e1; }
 .logo { font-size:1.5rem; font-weight:600; color:var(--primary); }
 .header-right { display:flex; align-items:center; gap:20px; }
+.health-badge { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-secondary); background:var(--bg-light); border:1px solid var(--border); padding:6px 10px; border-radius:16px; }
+.health-badge i { font-size:10px; }
+.health-badge.ok { color:#0f766e; border-color:#99f6e4; background:#f0fdfa; }
+.health-badge.error { color:#b91c1c; border-color:#fecaca; background:#fef2f2; }
 .role-badge { display:flex; align-items:center; gap:8px; background:var(--bg-light); padding:6px 14px; border-radius:30px; border:1px solid var(--border); cursor:pointer; }
 .role-badge:hover { background:#fee2e2; border-color:var(--danger); }
 .notification-badge { position:relative; font-size:20px; color:var(--secondary); cursor:pointer; display:flex; align-items:center; justify-content:center; width:40px; height:40px; border:1px solid transparent; border-radius:10px; }

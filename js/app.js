@@ -398,9 +398,11 @@
     let nextTaskId = 2000;
     let eventsBound = false;
     let activeQuickFilter = '';
+    let healthPingTimer = null;
     const taskRowMap = new Map();
     const API_BASE = '/api/tasks';
     const API_USERS = '/api/users';
+    const API_HEALTH = '/api/health';
 
     // Стандартные пользователи (для первой инициализации)
     const DEFAULT_USERS = [
@@ -474,6 +476,8 @@
     const quickFilterButtons = document.querySelectorAll('.quick-filter-btn');
     const quickFiltersRow = document.querySelector('.quick-filters-row');
     const syncStatusBanner = document.getElementById('syncStatusBanner');
+    const seatableHealthBadge = document.getElementById('seatableHealthBadge');
+    const seatableHealthText = document.getElementById('seatableHealthText');
     const addTaskCommentBtn = document.getElementById('addTaskCommentBtn');
     const taskCommentInput = document.getElementById('taskCommentInput');
     const taskCommentsList = document.getElementById('taskCommentsList');
@@ -624,6 +628,10 @@
 
     function logoutUser() {
         if (sessionTimer) clearTimeout(sessionTimer);
+        if (healthPingTimer) {
+            clearInterval(healthPingTimer);
+            healthPingTimer = null;
+        }
         currentUser = null;
         localStorage.removeItem(ACTIVE_SESSION_KEY);
         app.style.display = 'none';
@@ -816,6 +824,25 @@
         syncStatusBanner.classList.toggle('error', Boolean(isError));
     }
 
+    function setHealthBadge(state, text) {
+        if (!seatableHealthBadge || !seatableHealthText) return;
+        seatableHealthBadge.classList.remove('ok', 'error');
+        if (state === 'ok') seatableHealthBadge.classList.add('ok');
+        if (state === 'error') seatableHealthBadge.classList.add('error');
+        seatableHealthText.textContent = text;
+    }
+
+    async function pingSeatableHealth() {
+        setHealthBadge('', 'SeaTable: проверка...');
+        try {
+            const payload = await apiRequest(API_HEALTH, { timeoutMs: 9000 });
+            const latency = Number(payload?.latencyMs || 0);
+            setHealthBadge('ok', `SeaTable: онлайн (${latency} мс)`);
+        } catch (error) {
+            setHealthBadge('error', `SeaTable: недоступен`);
+        }
+    }
+
     async function apiRequest(url, options = {}) {
         const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 12000;
         const controller = new AbortController();
@@ -969,6 +996,12 @@
         switchView(resolveStartView(settings.defaultView));
         updateHeaderAvatar();
         void syncTasksFromApi();
+        void pingSeatableHealth();
+        if (healthPingTimer) clearInterval(healthPingTimer);
+        healthPingTimer = setInterval(() => {
+            if (!currentUser || document.visibilityState === 'hidden') return;
+            void pingSeatableHealth();
+        }, 60000);
         resetSessionTimer();
     }
 
