@@ -1356,3 +1356,168 @@ body.compact-mode .form-group {
     border-radius: var(--radius);
     background: white;
 }
+
+/* ===== VISUAL REFRESH (taskspyanao) ===== */
+body {
+    font-family: Inter, "Segoe UI", Roboto, sans-serif;
+}
+
+.login-screen {
+    background:
+        radial-gradient(circle at 18% 16%, rgba(255,255,255,0.15), transparent 30%),
+        radial-gradient(circle at 82% 12%, rgba(59,130,246,0.22), transparent 28%),
+        linear-gradient(135deg, #0b4ea2 0%, #155fc1 45%, #1d7be0 100%);
+}
+
+.login-screen::before,
+.login-screen::after {
+    opacity: 0.09;
+}
+
+.login-card {
+    max-width: 540px;
+    border-radius: 30px;
+    padding: 48px 52px;
+    background: rgba(255, 255, 255, 0.94);
+}
+
+.login-header h1 {
+    font-size: 2.4rem;
+    letter-spacing: 0.01em;
+    margin-top: 6px;
+}
+
+.login-header p {
+    font-size: 1.05rem;
+    color: #36557a;
+    margin-top: 8px;
+}
+
+.login-form input,
+.login-card input {
+    border-radius: 14px;
+}
+
+.header {
+    height: 76px;
+    padding: 0 28px;
+    background: rgba(255, 255, 255, 0.93);
+}
+
+.brand-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.logo {
+    font-size: 1.48rem;
+    letter-spacing: 0.01em;
+}
+
+.brand-subtitle {
+    font-size: 0.76rem;
+    color: #617895;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin: 0;
+}
+
+.sidebar {
+    width: 312px;
+    left: -312px;
+    background: linear-gradient(180deg, #0d4f9c 0%, #0f5fb9 58%, #0b4c98 100%);
+}
+
+.sidebar::after {
+    display: none;
+}
+
+.sidebar-header {
+    padding: 20px 22px;
+    background: rgba(8, 43, 86, 0.2);
+}
+
+.menu-item {
+    border-left-width: 3px;
+    font-size: 1rem;
+    padding: 14px 22px;
+}
+
+.menu-item.active {
+    background: rgba(255,255,255,0.22);
+    border-left-color: #ffd27b;
+}
+
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 17, 32, 0.48);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.22s ease, visibility 0.22s ease;
+    z-index: 990;
+}
+
+.sidebar-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+body.sidebar-open {
+    overflow: hidden;
+}
+
+.tasks-actions-panel,
+.table-wrapper,
+.stat-card,
+.stats-panel {
+    border-radius: 20px;
+}
+
+@media (max-width: 768px) {
+    .login-card {
+        width: calc(100% - 24px);
+        padding: 32px 20px;
+        border-radius: 22px;
+    }
+
+    .login-header h1 {
+        font-size: 2rem;
+    }
+
+    .login-header p {
+        font-size: 0.95rem;
+    }
+
+    .header {
+        height: 62px;
+        padding: 0 12px;
+    }
+
+    .brand-subtitle {
+        display: none;
+    }
+
+    .logo {
+        font-size: 1.1rem;
+    }
+
+    .header-right {
+        gap: 8px;
+    }
+
+    .health-badge,
+    .role-badge {
+        display: none;
+    }
+
+    .sidebar {
+        width: min(86vw, 320px);
+        left: -100%;
+    }
+
+    .sidebar.open {
+        left: 0 !important;
+    }
+}

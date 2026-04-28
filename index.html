@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IT-SP · Планировщик задач</title>
+    <title>Планировщик задач</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerpolicy="no-referrer">
     <link rel="stylesheet" href="css/style.css">
@@ -19,8 +19,8 @@
         <div class="login-card">
             <div class="login-header">
                 <i class="fas fa-tasks"></i>
-                <h1>IT-SP</h1>
-                <p>Система планирования задач</p>
+                <h1>taskspyanao</h1>
+                <p>Профессиональный Service Desk для заявок и контроля исполнения</p>
             </div>
             <form id="loginForm">
                 <div class="form-group">
@@ -45,7 +45,9 @@
                 <button class="burger-btn" id="burgerBtn" aria-label="Открыть меню" title="Меню">
                     <i class="fas fa-bars" aria-hidden="true"></i>
                 </button>
-                <h1 class="logo">IT-SP · Планировщик</h1>
+                <div class="brand-block">
+                    <h1 class="logo">taskspyanao</h1>
+                </div>
             </div>
             <div class="header-right">
                 <div class="health-badge" id="seatableHealthBadge" title="Проверка SeaTable">
@@ -67,9 +69,10 @@
             </div>
         </header>
 
+        <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
         <nav class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <span>Меню</span>
+                <span>Навигация</span>
                 <button class="close-sidebar" id="closeSidebarBtn">&times;</button>
             </div>
             <ul class="sidebar-menu">

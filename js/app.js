@@ -445,6 +445,7 @@
     const app = document.getElementById('app');
     const loginForm = document.getElementById('loginForm');
     const sidebar = document.getElementById('sidebar');
+    const sidebarBackdrop = document.getElementById('sidebarBackdrop');
     const burgerBtn = document.getElementById('burgerBtn');
     const closeSidebarBtn = document.getElementById('closeSidebarBtn');
     const views = document.querySelectorAll('.view');
@@ -2303,12 +2304,19 @@
 
     // ==================== ГЛАВНЫЕ ОБРАБОТЧИКИ ====================
     function setupEventListeners() {
-        burgerBtn.addEventListener('click', () => sidebar.classList.add('open'));
-        closeSidebarBtn.addEventListener('click', () => sidebar.classList.remove('open'));
+        const setSidebarOpen = (isOpen) => {
+            sidebar.classList.toggle('open', isOpen);
+            sidebarBackdrop?.classList.toggle('show', isOpen);
+            if (isOpen) document.body.classList.add('sidebar-open');
+            else document.body.classList.remove('sidebar-open');
+        };
+        burgerBtn.addEventListener('click', () => setSidebarOpen(true));
+        closeSidebarBtn.addEventListener('click', () => setSidebarOpen(false));
+        sidebarBackdrop?.addEventListener('click', () => setSidebarOpen(false));
         menuItems.forEach(item => item.addEventListener('click', () => {
             if (!item.dataset.view) return;
             switchView(item.dataset.view);
-            sidebar.classList.remove('open');
+            setSidebarOpen(false);
         }));
         openQuickTaskBtn.addEventListener('click', () => {
             const userProfile = findUserByUsername(currentUser.username) || currentUser;
