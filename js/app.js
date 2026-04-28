@@ -480,7 +480,6 @@
     const quickTaskDeadline = document.getElementById('quickTaskDeadline');
     const quickTaskAttachmentInput = document.getElementById('quickTaskAttachmentInput');
     const supportDirectionsList = document.getElementById('supportDirectionsList');
-    const orgNameInput = document.getElementById('orgName');
     const themeSelect = document.getElementById('themeSelect');
     const compactModeInput = document.getElementById('compactMode');
     const desktopNotificationsInput = document.getElementById('desktopNotifications');
@@ -507,7 +506,6 @@
     const taskAttachmentInput = document.getElementById('taskAttachmentInput');
     const addTaskAttachmentBtn = document.getElementById('addTaskAttachmentBtn');
     const DEFAULT_SETTINGS = {
-        orgName: 'IT-SP',
         theme: 'light',
         compactMode: false,
         desktopNotifications: true,
@@ -1823,30 +1821,25 @@
     // ==================== НАСТРОЙКИ ====================
     function loadSettings() {
         const settings = getAppSettings();
-        if (orgNameInput) orgNameInput.value = settings.orgName;
         if (themeSelect) themeSelect.value = settings.theme;
         if (compactModeInput) compactModeInput.checked = Boolean(settings.compactMode);
         if (desktopNotificationsInput) desktopNotificationsInput.checked = Boolean(settings.desktopNotifications);
         if (defaultViewSelect) defaultViewSelect.value = resolveStartView(settings.defaultView);
         updateDefaultViewOptions();
-        document.querySelector('.logo').textContent = settings.orgName + ' · Планировщик';
         applyUiSettings(settings);
         return settings;
     }
     settingsForm.addEventListener('submit', e => {
         e.preventDefault();
         const currentSettings = getAppSettings();
-        const canEditOrgName = currentUser && (currentUser.role === 'admin' || currentUser.role === 'director');
         const nextSettings = {
             ...currentSettings,
-            orgName: canEditOrgName ? (orgNameInput?.value?.trim() || DEFAULT_SETTINGS.orgName) : currentSettings.orgName,
             theme: themeSelect?.value === 'dark' ? 'dark' : 'light',
             compactMode: Boolean(compactModeInput?.checked),
             desktopNotifications: Boolean(desktopNotificationsInput?.checked),
             defaultView: resolveStartView(defaultViewSelect?.value || 'tasks')
         };
         saveAppSettings(nextSettings);
-        document.querySelector('.logo').textContent = nextSettings.orgName + ' · Планировщик';
         applyUiSettings(nextSettings);
         showToast('Настройки сохранены', 'success');
     });

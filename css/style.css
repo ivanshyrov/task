@@ -62,13 +62,14 @@ body::before{
 .login-card { position:relative; background:rgba(255,255,255,0.9); backdrop-filter:blur(14px); padding:42px; border-radius:28px; width:100%; max-width:420px; border:1px solid rgba(255,255,255,0.45); box-shadow:var(--shadow-lg); }
 .login-header { text-align:center; margin-bottom:30px; }
 .login-brand-logo { width:108px; height:108px; object-fit:cover; border-radius:22px; box-shadow:0 10px 24px rgba(20,48,79,0.18); }
+.login-header p { margin-top:14px; font-size:1.02rem; color:#1f3f63; font-weight:500; }
 .login-hint { margin-top:15px; font-size:0.85rem; color:var(--text-muted); text-align:center; }
 .header { display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:72px; background:rgba(255,255,255,0.88); backdrop-filter:blur(18px); border-bottom:1px solid rgba(214,228,242,0.9); position:sticky; top:0; z-index:20; box-shadow:0 8px 30px rgba(16,51,92,0.06); }
 .header::before { content:""; position:absolute; inset:0 0 auto 0; height:4px; background:linear-gradient(90deg, var(--primary) 0 72%, var(--accent-red) 72% 84%, var(--accent-gold) 84% 100%); }
 .header-left { display:flex; align-items:center; gap:16px; }
 .burger-btn { width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.9); border:1px solid var(--border); border-radius:14px; font-size:24px; cursor:pointer; color:var(--secondary); line-height:1; box-shadow:var(--shadow-sm); }
 .burger-btn:hover { color:var(--primary); background:#fff; border-color:#b9d0e8; }
-.logo { font-size:1.55rem; font-weight:700; color:var(--text-main); letter-spacing:0.01em; display:flex; align-items:center; gap:10px; }
+.logo { font-size:1.55rem; font-weight:700; color:var(--text-main); letter-spacing:0.01em; display:flex; align-items:center; gap:10px; margin:0; }
 .logo::before{
     content:none;
     width:12px; height:12px;
@@ -77,7 +78,7 @@ body::before{
     box-shadow:0 10px 22px rgba(216,171,50,0.22);
     transform:rotate(8deg);
 }
-.header-brand-logo { width:34px; height:34px; object-fit:cover; border-radius:9px; box-shadow:0 5px 14px rgba(20,48,79,0.16); }
+.header-brand-logo { width:42px; height:42px; object-fit:contain; border-radius:10px; box-shadow:0 6px 16px rgba(20,48,79,0.18); background:#ffffff; padding:2px; }
 .header-right { display:flex; align-items:center; gap:20px; }
 .health-badge { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); background:rgba(255,255,255,0.82); border:1px solid var(--border); padding:7px 12px; border-radius:999px; box-shadow:var(--shadow-sm); }
 .health-badge i { font-size:10px; }
@@ -110,8 +111,8 @@ body::before{
 .sidebar-header { display:flex; justify-content:space-between; padding:24px 24px 20px; border-bottom:1px solid rgba(255,255,255,0.12); font-weight:700; letter-spacing:0.02em; }
 .close-sidebar { background:none; border:none; font-size:28px; cursor:pointer; color:#fff; }
 .sidebar-menu { list-style:none; padding:16px 0; flex:1; }
-.sidebar-footer-image { margin-top:auto; padding:12px 14px 16px; border-top:1px solid rgba(255,255,255,0.14); }
-.sidebar-footer-image img { width:100%; height:120px; object-fit:cover; border-radius:12px; border:1px solid rgba(255,255,255,0.22); }
+.sidebar-footer-image { margin-top:auto; padding:12px 14px 16px; border-top:1px solid rgba(255,255,255,0.14); background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.08)); }
+.sidebar-footer-image img { width:100%; height:142px; object-fit:cover; border-radius:12px; border:1px solid rgba(255,255,255,0.22); box-shadow:0 8px 18px rgba(2,19,44,0.32); }
 .menu-item { display:flex; align-items:center; gap:12px; padding:13px 24px; cursor:pointer; border-left:4px solid transparent; color:rgba(238,246,255,0.9); }
 .menu-item i { width:20px; color:rgba(255,255,255,0.82); }
 .menu-item:hover { background:rgba(255,255,255,0.08); }
@@ -568,7 +569,7 @@ body::before{
         font-size: 1.1rem;
         font-weight: 700;
     }
-    .header-brand-logo { width:28px; height:28px; border-radius:7px; }
+    .header-brand-logo { width:34px; height:34px; border-radius:8px; }
     .login-brand-logo { width:88px; height:88px; border-radius:18px; }
     
     .header-right {
@@ -606,7 +607,7 @@ body::before{
         background: var(--primary);
         color: white;
     }
-    .sidebar-footer-image img { height:92px; }
+    .sidebar-footer-image img { height:108px; }
     
     .sidebar-header span {
         font-weight: 600;
