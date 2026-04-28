@@ -548,6 +548,14 @@
         }
     };
 
+    function purgeLocalPlannerData() {
+        // Требование: данные по задачам/направлениям/базам не должны подтягиваться локально после F5.
+        // Оставляем localStorage только для UI-настроек, аватаров и хэшей паролей пользователей.
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+        } catch {}
+    }
+
     function buildDefaultTaskTitle({ department, description }) {
         const dept = String(department || '').trim();
         const desc = String(description || '').replace(/\s+/g, ' ').trim();
@@ -567,62 +575,11 @@
     }
 
     function loadPersistedData() {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) {
-            departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
-            return;
-        }
-        try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed.databases)) {
-                const storedDatabases = parsed.databases
-                    .map((db) => ({
-                        id: String(db?.id || '').trim(),
-                        name: String(db?.name || '').trim(),
-                    }))
-                    .filter((db) => db.id && db.name);
-
-                if (storedDatabases.length) {
-                    databases.splice(0, databases.length, ...storedDatabases.map((db) => ({
-                        ...db,
-                        tasks: [],
-                    })));
-                }
-            }
-            if (Array.isArray(parsed.employeesData)) employeesData = parsed.employeesData;
-            if (Array.isArray(parsed.departmentsData)) {
-                departmentsData = parsed.departmentsData;
-            } else {
-                departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
-            }
-            if (parsed.currentDatabaseId && databases.some(d => d.id === parsed.currentDatabaseId)) {
-                currentDatabaseId = parsed.currentDatabaseId;
-            }
-        } catch (error) {
-            console.error('Ошибка чтения сохраненных данных:', error);
-            departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
-        }
-
-        // Нормализация форматов направлений (на случай старых данных/ручных правок).
-        if (Array.isArray(departmentsData)) {
-            departmentsData = departmentsData
-                .map((d) => {
-                    if (typeof d === 'string') return { name: d };
-                    if (d && typeof d === 'object') return { name: String(d.name || '').trim() };
-                    return { name: '' };
-                })
-                .filter((d) => d.name);
-        }
+        departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
     }
 
     function savePersistedData() {
-        if (!dataLoaded) return;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            databases: databases.map((db) => ({ id: db.id, name: db.name })),
-            employeesData,
-            departmentsData,
-            currentDatabaseId
-        }));
+        // no-op: intentionally do not persist planner data
     }
 
     function syncDepartmentsFromApi() {
@@ -978,6 +935,7 @@
     }
 
     async function initApp() {
+        purgeLocalPlannerData();
         loadPersistedData();
         syncDepartmentsFromApi();
         let maxId = 0;

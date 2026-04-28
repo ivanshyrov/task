@@ -49,6 +49,18 @@ body::before{
     opacity:0.24;
     pointer-events:none;
 }
+.login-screen::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    opacity:0.14;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900' viewBox='0 0 900 900'%3E%3Cg fill='none'%3E%3Cpath d='M450 120c140 0 250 70 250 190 0 205-146 345-250 420-104-75-250-215-250-420 0-120 110-190 250-190z' stroke='%23ffffff' stroke-opacity='.55' stroke-width='10'/%3E%3Cpath d='M450 210c66 0 120 54 120 120s-54 120-120 120-120-54-120-120 54-120 120-120z' stroke='%23d8ab32' stroke-opacity='.7' stroke-width='10'/%3E%3Cpath d='M450 255c40 34 70 60 92 100-44 40-76 58-92 66-16-8-48-26-92-66 22-40 52-66 92-100z' fill='%23d8ab32' fill-opacity='.24'/%3E%3Cpath d='M292 300c-42-34-76-46-112-40 26 36 30 64 22 94m386-54c42-34 76-46 112-40-26 36-30 64-22 94' stroke='%23ffffff' stroke-opacity='.32' stroke-width='8' stroke-linecap='round'/%3E%3Cpath d='M350 470c28 40 64 60 100 60s72-20 100-60' stroke='%23ffffff' stroke-opacity='.32' stroke-width='8' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:50% 46%;
+    background-size:560px 560px;
+    filter: drop-shadow(0 22px 70px rgba(0,0,0,0.22));
+}
 .login-card { position:relative; background:rgba(255,255,255,0.9); backdrop-filter:blur(14px); padding:42px; border-radius:28px; width:100%; max-width:420px; border:1px solid rgba(255,255,255,0.45); box-shadow:var(--shadow-lg); }
 .login-header { text-align:center; margin-bottom:30px; }
 .login-header i { font-size:52px; color:var(--accent-gold); text-shadow:0 8px 24px rgba(216,171,50,0.35); }
