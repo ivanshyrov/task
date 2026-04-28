@@ -11,9 +11,20 @@ const {
 const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
 const VIEW_NAME = process.env.SEATABLE_VIEW_NAME || "Default";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 module.exports = async (req, res) => {
+  if (typeof res.setHeader === "function") {
+    Object.entries(CORS_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
+  }
+
+  const method = String(req.method || "").toUpperCase();
   const debug = {
-    method: req.method,
+    method,
     id: req.query?.id,
     numericId: null,
     bodyHasRowId: false,
@@ -92,14 +103,18 @@ module.exports = async (req, res) => {
       return Array.isArray(list) ? list.find((item) => Number((item?.row || item)?.id) === numericId) || null : null;
     }
 
-    if (req.method === "GET") {
+    if (method === "OPTIONS") {
+      return res.status(204).end();
+    }
+
+    if (method === "GET") {
       if (!Number.isFinite(numericId)) return res.status(400).json({ error: "invalid id", debug });
       const row = await fetchTaskByIdFull();
       if (!row) return res.status(404).json({ error: "Task not found", debug });
       return res.status(200).json({ task: mapRowToTask(row) });
     }
 
-    if (req.method === "PUT") {
+    if (method === "PUT") {
       debug.bodyHasRowId = Boolean(req.body?.row_id);
       const rowId = req.body?.row_id || (await resolveRowId());
       debug.resolvedRowId = rowId || null;
@@ -144,7 +159,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({ task: refreshedTask });
     }
 
-    if (req.method === "DELETE") {
+    if (method === "DELETE") {
       debug.bodyHasRowId = Boolean(req.body?.row_id);
       const rowId = req.body?.row_id || (await resolveRowId());
       debug.resolvedRowId = rowId || null;

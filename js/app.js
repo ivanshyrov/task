@@ -196,7 +196,7 @@
             const rowId = task.row_id || taskRowMap.get(task.id);
             if (!rowId) continue;
             try {
-                await apiRequest(`${API_BASE}/${task.id}`, {
+                await apiRequest(API_BASE, {
                     method: 'PUT',
                     body: JSON.stringify({ ...task, row_id: rowId, id: task.id })
                 });
@@ -240,7 +240,7 @@
             const rowId = task.row_id || taskRowMap.get(task.id);
             if (!rowId) continue;
             try {
-                await apiRequest(`${API_BASE}/${task.id}`, {
+                await apiRequest(API_BASE, {
                     method: 'PUT',
                     body: JSON.stringify({ ...task, row_id: rowId, id: task.id })
                 });
@@ -919,7 +919,7 @@
             el.style.display = el.dataset.role.split(',').includes(role) ? '' : 'none';
         });
         openQuickTaskBtn.style.display = (role === 'employee' || role === 'admin' || role === 'director') ? 'flex' : 'none';
-        openQuickTaskBtn.innerHTML = '<i class="fas fa-plus"></i> НОВАЯ ЗАДАЧА';
+        openQuickTaskBtn.textContent = 'Новая задача';
         const isEmployee = role === 'employee';
         exportTasksBtn.style.display = isEmployee ? 'none' : 'inline-flex';
         filterDepartment.style.display = isEmployee ? 'none' : '';
@@ -1109,8 +1109,8 @@
                 <td style="${daysStyle}">${daysDisplay}</td>
                 <td>${task.report ? '✓' : ''}</td>
                 <td class="action-buttons">
-                    <button class="icon-btn view-task" title="Просмотр"><i class="fas fa-eye"></i></button>
-                    <button class="icon-btn delete-task-btn ${canDelete ? '' : 'icon-btn-disabled'}" title="${deleteHint}" data-id="${task.id}" ${canDelete ? '' : 'disabled'}><i class="fas fa-trash"></i></button>
+                    <button class="icon-btn view-task" title="Просмотр">Просмотр</button>
+                    <button class="icon-btn delete-task-btn ${canDelete ? '' : 'icon-btn-disabled'}" title="${deleteHint}" data-id="${task.id}" ${canDelete ? '' : 'disabled'}>Удалить</button>
                 </td>
             </tr>`;
         });
@@ -1141,10 +1141,10 @@
                         </div>
                         <div class="task-card-title">${task.title || '—'}</div>
                         <div class="task-card-meta">
-                            <span class="task-card-meta-item"><i class="fas fa-building"></i> ${task.department}</span>
-                            <span class="task-card-meta-item"><i class="fas fa-user"></i> ${task.author}</span>
-                            ${task.assignee ? `<span class="task-card-meta-item"><i class="fas fa-user-check"></i> ${task.assignee}</span>` : ''}
-                            <span class="task-card-meta-item"><i class="fas fa-calendar"></i> ${formatDate(task.deadline)}</span>
+                            <span class="task-card-meta-item">${task.department}</span>
+                            <span class="task-card-meta-item">${task.author}</span>
+                            ${task.assignee ? `<span class="task-card-meta-item">${task.assignee}</span>` : ''}
+                            <span class="task-card-meta-item">${formatDate(task.deadline)}</span>
                             ${daysDisplay ? `<span class="task-card-meta-item">${daysDisplay}</span>` : ''}
                         </div>
                         <div class="task-card-status">
@@ -1152,10 +1152,10 @@
                         </div>
                         <div class="task-card-actions">
                             <button class="btn btn-outline view-task-card" data-id="${task.id}">
-                                <i class="fas fa-eye"></i> Просмотр
+                                Просмотр
                             </button>
                             ${canDelete ? `<button class="btn btn-danger delete-task-card" data-id="${task.id}">
-                                <i class="fas fa-trash"></i>
+                                Удалить
                             </button>` : ''}
                         </div>
                     </div>
@@ -1394,7 +1394,7 @@
             `<div class="comment-item">
                 <div class="comment-meta">${a.author} · ${new Date(a.createdAt).toLocaleString('ru-RU')}</div>
                 <a href="${a.dataUrl}" download="${a.name}">${a.name}</a>
-                <button type="button" class="icon-btn remove-attachment-btn" data-index="${idx}" title="Удалить"><i class="fas fa-trash"></i></button>
+                <button type="button" class="icon-btn remove-attachment-btn" data-index="${idx}" title="Удалить">Удалить</button>
             </div>`
         ).join('') || '<div class="comment-item"><div class="comment-meta">Вложений пока нет</div></div>';
     }
@@ -1462,10 +1462,10 @@
         refreshTaskRelatedUi();
         try {
             const rowId = task.row_id || taskRowMap.get(task.id);
-            await apiRequest(`${API_BASE}/${task.id}`, {
-                method: 'PUT',
-                body: JSON.stringify({ ...task, row_id: rowId, id: task.id })
-            });
+                await apiRequest(API_BASE, {
+                    method: 'PUT',
+                    body: JSON.stringify({ ...task, row_id: rowId, id: task.id })
+                });
             showToast(`Задача #${task.id} обновлена`, 'success');
             setSyncBanner('Изменения сохранены в SeaTable.');
             return true;
@@ -1604,7 +1604,7 @@
             refreshTaskRelatedUi();
             try {
                 for (const item of rowsToDelete) {
-                    await apiRequest(`${API_BASE}/${item.id}`, { method: 'DELETE', body: JSON.stringify({ row_id: item.rowId }) });
+                    await apiRequest(API_BASE, { method: 'DELETE', body: JSON.stringify({ row_id: item.rowId }) });
                     taskRowMap.delete(item.id);
                 }
                 setSyncBanner('Изменения сохранены в SeaTable.');
@@ -1679,7 +1679,7 @@
     }
     function updateNotificationBadge() { notificationCount.textContent = notifications.filter(n => !n.read).length; }
     notificationBadge.addEventListener('click', () => {
-        notificationsList.innerHTML = notifications.map(n => `<div class="notification-item ${n.read?'':'unread'}"><i class="fas fa-bell"></i><div>${n.message}</div></div>`).join('') || '<p>Нет уведомлений</p>';
+        notificationsList.innerHTML = notifications.map(n => `<div class="notification-item ${n.read?'':'unread'}"><div>${n.message}</div></div>`).join('') || '<p>Нет уведомлений</p>';
         notifications.forEach(n => n.read = true);
         updateNotificationBadge();
         notificationsModal.classList.add('show');
@@ -1803,8 +1803,8 @@
             `<tr>
                 <td>${sanitizeHTML(d.name || '')}</td>
                 <td>
-                    <button class="icon-btn edit-department" data-index="${index}" title="Редактировать"><i class="fas fa-edit"></i></button>
-                    <button class="icon-btn delete-department" data-index="${index}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>
+                    <button class="icon-btn edit-department" data-index="${index}" title="Редактировать">Изменить</button>
+                    <button class="icon-btn delete-department" data-index="${index}" title="Удалить" style="margin-left:4px;">Удалить</button>
                 </td>
             </tr>`
         ).join('');
@@ -1865,9 +1865,9 @@
                 <td>${sanitizeHTML(u.office || '—')}</td>
                 <td>
                     ${u.username !== 'admin'
-                        ? `<button class="icon-btn edit-user-btn" data-username="${sanitizeHTML(u.username)}" title="Редактировать"><i class="fas fa-edit"></i></button>
-                           <button class="icon-btn delete-user-btn" data-username="${sanitizeHTML(u.username)}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>`
-                        : `<button class="icon-btn edit-user-btn" data-username="admin" title="Редактировать (логин/пароль нельзя менять)"><i class="fas fa-edit"></i></button>
+                        ? `<button class="icon-btn edit-user-btn" data-username="${sanitizeHTML(u.username)}" title="Редактировать">Изменить</button>
+                           <button class="icon-btn delete-user-btn" data-username="${sanitizeHTML(u.username)}" title="Удалить" style="margin-left:4px;">Удалить</button>`
+                        : `<button class="icon-btn edit-user-btn" data-username="admin" title="Редактировать (логин/пароль нельзя менять)">Изменить</button>
                            <span style="color:var(--primary); font-size:12px; margin-left:8px;">Основной</span>`}
                 </td>
             </tr>`
@@ -2038,12 +2038,12 @@
         if (detailed.style.display === 'none') {
             simple.style.display = 'none';
             detailed.style.display = 'block';
-            btn.innerHTML = '<i class="fas fa-chart-pie"></i> Простая статистика';
+            btn.innerHTML = 'Простая статистика';
             renderDetailedStats();
         } else {
             simple.style.display = 'grid';
             detailed.style.display = 'none';
-            btn.innerHTML = '<i class="fas fa-chart-pie"></i> Детальная статистика';
+            btn.innerHTML = 'Детальная статистика';
         }
     }
 
@@ -2311,7 +2311,7 @@
                 refreshTaskRelatedUi();
                 taskDetailModal.classList.remove('show');
                 try {
-                    await apiRequest(`${API_BASE}/${taskId}`, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
+                    await apiRequest(API_BASE, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }) });
                     taskRowMap.delete(taskId);
                     setSyncBanner('Изменения сохранены в SeaTable.');
                     showToast('Задача удалена', 'success');

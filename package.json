@@ -10,6 +10,7 @@
     "test": "node test/seatable.test.js"
   },
   "dependencies": {
+    "@vercel/speed-insights": "^2.0.0",
     "node-fetch": "^2.7.0"
   },
   "engines": {
