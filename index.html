@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Планировщик задач</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/png" href="assets/logo-brand.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerpolicy="no-referrer">
     <link rel="stylesheet" href="css/style.css">
     <script>
@@ -18,7 +18,7 @@
     <div id="loginScreen" class="login-screen">
         <div class="login-card">
             <div class="login-header">
-                <i class="fas fa-tasks"></i>
+                <img src="assets/logo-brand.png" alt="IT-SP" class="login-brand-logo">
                 <h1>IT-SP</h1>
                 <p>Система планирования задач</p>
             </div>
@@ -45,7 +45,7 @@
                 <button class="burger-btn" id="burgerBtn" aria-label="Открыть меню" title="Меню">
                     <i class="fas fa-bars" aria-hidden="true"></i>
                 </button>
-                <h1 class="logo">IT-SP · Планировщик</h1>
+                <h1 class="logo"><img src="assets/logo-brand.png" alt="IT-SP" class="header-brand-logo">IT-SP · Планировщик задач</h1>
             </div>
             <div class="header-right">
                 <div class="health-badge" id="seatableHealthBadge" title="Проверка SeaTable">
@@ -82,6 +82,9 @@
                 <li class="menu-item" data-view="settings" data-role="admin,director,employee"><i class="fas fa-cog"></i><span>Настройки</span></li>
                 <li class="menu-item" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Выйти</span></li>
             </ul>
+            <div class="sidebar-footer-image">
+                <img src="assets/sidebar-bottom.png" alt="Декоративная иллюстрация">
+            </div>
         </nav>
 
         <main class="main-content">

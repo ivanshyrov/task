@@ -1101,8 +1101,16 @@
         const priorityWeight = { 'Критический': 4, 'Высокий': 3, 'Средний': 2, 'Низкий': 1 };
         const sortMode = sortTasks?.value || 'createdAt_desc';
         tasks = tasks.slice().sort((a, b) => {
-            if (sortMode === 'createdAt_asc') return (a.createdAt || '').localeCompare(b.createdAt || '');
-            if (sortMode === 'createdAt_desc') return (b.createdAt || '').localeCompare(a.createdAt || '');
+            if (sortMode === 'createdAt_asc') {
+                const byDate = (a.createdAt || '').localeCompare(b.createdAt || '');
+                if (byDate !== 0) return byDate;
+                return Number(a.id || 0) - Number(b.id || 0);
+            }
+            if (sortMode === 'createdAt_desc') {
+                const byDate = (b.createdAt || '').localeCompare(a.createdAt || '');
+                if (byDate !== 0) return byDate;
+                return Number(b.id || 0) - Number(a.id || 0);
+            }
             if (sortMode === 'deadline_asc') return (a.deadline || '9999-12-31').localeCompare(b.deadline || '9999-12-31');
             if (sortMode === 'deadline_desc') return (b.deadline || '').localeCompare(a.deadline || '');
             if (sortMode === 'priority_desc') return (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
