@@ -1142,8 +1142,8 @@
                 <td style="${daysStyle}">${daysDisplay}</td>
                 <td>${task.report ? '✓' : ''}</td>
                 <td class="action-buttons">
-                    <button class="icon-btn view-task" title="Просмотр">Просмотр</button>
-                    <button class="icon-btn delete-task-btn ${canDelete ? '' : 'icon-btn-disabled'}" title="${deleteHint}" data-id="${task.id}" ${canDelete ? '' : 'disabled'}>Удалить</button>
+                    <button class="icon-btn view-task" title="Просмотр"><i class="fas fa-eye"></i></button>
+                    <button class="icon-btn delete-task-btn ${canDelete ? '' : 'icon-btn-disabled'}" title="${deleteHint}" data-id="${task.id}" ${canDelete ? '' : 'disabled'}><i class="fas fa-trash"></i></button>
                 </td>
             </tr>`;
         });
@@ -1427,7 +1427,7 @@
             `<div class="comment-item">
                 <div class="comment-meta">${a.author} · ${new Date(a.createdAt).toLocaleString('ru-RU')}</div>
                 <a href="${a.dataUrl}" download="${a.name}">${a.name}</a>
-                <button type="button" class="icon-btn remove-attachment-btn" data-index="${idx}" title="Удалить">Удалить</button>
+                <button type="button" class="icon-btn remove-attachment-btn" data-index="${idx}" title="Удалить"><i class="fas fa-trash"></i></button>
             </div>`
         ).join('') || '<div class="comment-item"><div class="comment-meta">Вложений пока нет</div></div>';
     }
@@ -1836,8 +1836,8 @@
             `<tr>
                 <td>${sanitizeHTML(d.name || '')}</td>
                 <td>
-                    <button class="icon-btn edit-department" data-index="${index}" title="Редактировать">Изменить</button>
-                    <button class="icon-btn delete-department" data-index="${index}" title="Удалить" style="margin-left:4px;">Удалить</button>
+                    <button class="icon-btn edit-department" data-index="${index}" title="Редактировать"><i class="fas fa-pen"></i></button>
+                    <button class="icon-btn delete-department" data-index="${index}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>`
         ).join('');
@@ -1898,9 +1898,9 @@
                 <td>${sanitizeHTML(u.office || '—')}</td>
                 <td>
                     ${u.username !== 'admin'
-                        ? `<button class="icon-btn edit-user-btn" data-username="${sanitizeHTML(u.username)}" title="Редактировать">Изменить</button>
-                           <button class="icon-btn delete-user-btn" data-username="${sanitizeHTML(u.username)}" title="Удалить" style="margin-left:4px;">Удалить</button>`
-                        : `<button class="icon-btn edit-user-btn" data-username="admin" title="Редактировать (логин/пароль нельзя менять)">Изменить</button>
+                        ? `<button class="icon-btn edit-user-btn" data-username="${sanitizeHTML(u.username)}" title="Редактировать"><i class="fas fa-pen"></i></button>
+                           <button class="icon-btn delete-user-btn" data-username="${sanitizeHTML(u.username)}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>`
+                        : `<button class="icon-btn edit-user-btn" data-username="admin" title="Редактировать (логин/пароль нельзя менять)"><i class="fas fa-pen"></i></button>
                            <span style="color:var(--primary); font-size:12px; margin-left:8px;">Основной</span>`}
                 </td>
             </tr>`
