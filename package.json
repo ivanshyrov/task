@@ -7,7 +7,9 @@
     "start": "node api/tasks/index.js",
     "dev": "node api/tasks/index.js",
     "build": "echo 'No build step required'",
-    "test": "node test/seatable.test.js"
+    "test": "node test/seatable.test.js",
+    "deploy:preview": "vercel --yes --token \"$VERCEL_TOKEN\"",
+    "deploy:prod": "vercel --prod --yes --token \"$VERCEL_TOKEN\""
   },
   "dependencies": {
     "@vercel/speed-insights": "^2.0.0",

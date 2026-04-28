@@ -23,6 +23,28 @@
         return new Date(dateStr).toLocaleString('ru-RU');
     }
 
+    function toLocalDateYmd(value) {
+        if (!value) return '';
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return '';
+            const isoLike = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+            if (isoLike) return isoLike[1];
+            const ruLike = trimmed.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+            if (ruLike) return `${ruLike[3]}-${ruLike[2]}-${ruLike[1]}`;
+        }
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function getTodayYmd() {
+        return toLocalDateYmd(new Date());
+    }
+
     function sanitizeHTML(str) {
         const temp = document.createElement('div');
         temp.textContent = str;
@@ -655,7 +677,9 @@
         task.title = task.title || task.description || `Заявка #${task.id}`;
         task.assignee = task.assignee || '';
         if (!PRIORITIES.includes(task.priority)) task.priority = 'Средний';
+        task.createdAt = toLocalDateYmd(task.createdAt) || getTodayYmd();
         task.updatedAt = task.updatedAt || task.createdAt || new Date().toISOString().split('T')[0];
+        task.deadline = toLocalDateYmd(task.deadline);
         task.slaDays = Number(task.slaDays) || SLA_DAYS_BY_PRIORITY[task.priority] || 3;
         task.assignedAt = task.assignedAt || '';
         task.inProgressAt = task.inProgressAt || '';
@@ -671,7 +695,7 @@
     function getDateWithOffset(days) {
         const date = new Date();
         date.setDate(date.getDate() + days);
-        return date.toISOString().split('T')[0];
+        return toLocalDateYmd(date);
     }
 
     function readFileAsDataUrl(file) {
@@ -1043,7 +1067,7 @@
         if (filterDepartment.value) tasks = tasks.filter(t => t.department === filterDepartment.value);
         if (filterPriority.value) tasks = tasks.filter(t => t.priority === filterPriority.value);
         if (filterStatus.value) tasks = tasks.filter(t => t.status === filterStatus.value);
-        if (filterDate.value) tasks = tasks.filter(t => t.deadline === filterDate.value);
+        if (filterDate.value) tasks = tasks.filter(t => toLocalDateYmd(t.deadline) === filterDate.value);
         if (searchTask.value) {
             const q = searchTask.value.toLowerCase();
             tasks = tasks.filter(t => t.description.toLowerCase().includes(q) || (t.title || '').toLowerCase().includes(q));
@@ -1057,8 +1081,11 @@
         } else if (activeQuickFilter === 'review') {
             tasks = tasks.filter(t => t.status === 'На проверке');
         } else if (activeQuickFilter === 'overdue') {
-            const today = new Date().toISOString().split('T')[0];
-            tasks = tasks.filter(t => t.deadline && t.deadline < today && t.status !== 'Закрыта');
+            const today = getTodayYmd();
+            tasks = tasks.filter(t => {
+                const deadline = toLocalDateYmd(t.deadline);
+                return deadline && deadline < today && t.status !== 'Закрыта';
+            });
         }
         const priorityWeight = { 'Критический': 4, 'Высокий': 3, 'Средний': 2, 'Низкий': 1 };
         const sortMode = sortTasks?.value || 'createdAt_desc';
@@ -1076,8 +1103,10 @@
 
     function getDaysUntil(deadline) {
         if (!deadline) return null;
+        const normalizedDeadline = toLocalDateYmd(deadline);
+        if (!normalizedDeadline) return null;
         const today = new Date(); today.setHours(0,0,0,0);
-        const dl = new Date(deadline); dl.setHours(0,0,0,0);
+        const dl = new Date(normalizedDeadline); dl.setHours(0,0,0,0);
         return Math.ceil((dl - today) / (1000*60*60*24));
     }
 
@@ -1637,10 +1666,10 @@
         renderTasks();
     });
     setTodayFilterBtn.addEventListener('click', () => {
-        filterDate.value = new Date().toISOString().split('T')[0]; renderTasks();
+        filterDate.value = getTodayYmd(); renderTasks();
     });
     setTodayDeadlineBtn?.addEventListener('click', () => {
-        quickTaskDeadline.value = new Date().toISOString().split('T')[0];
+        quickTaskDeadline.value = getTodayYmd();
     });
     exportTasksBtn.addEventListener('click', () => {
         const filtered = filterTasks();
@@ -1961,9 +1990,12 @@
         document.getElementById('statInProgress').textContent = tasks.filter(t => t.status === 'В работе').length;
         document.getElementById('statCompleted').textContent = tasks.filter(t => t.status === 'Закрыта').length;
         if (statNewTasks) statNewTasks.textContent = tasks.filter(t => t.status === 'Новая').length;
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayYmd();
         const overdueEl = document.getElementById('statOverdue');
-        if (overdueEl) overdueEl.textContent = tasks.filter(t => t.deadline && t.deadline < today && t.status !== 'Закрыта').length;
+        if (overdueEl) overdueEl.textContent = tasks.filter(t => {
+            const deadline = toLocalDateYmd(t.deadline);
+            return deadline && deadline < today && t.status !== 'Закрыта';
+        }).length;
         const inSlaEl = document.getElementById('statInSla');
         const outSlaEl = document.getElementById('statOutSla');
         let inSla = 0;
@@ -2003,11 +2035,14 @@
         const dates = [];
         for (let i = 13; i >= 0; i--) {
             const d = new Date(); d.setDate(d.getDate() - i);
-            dates.push(d.toISOString().split('T')[0]);
+            dates.push(toLocalDateYmd(d));
         }
         const dailyCounts = {};
         dates.forEach(d => dailyCounts[d] = 0);
-        tasks.forEach(t => { if (dailyCounts.hasOwnProperty(t.createdAt)) dailyCounts[t.createdAt]++; });
+        tasks.forEach(t => {
+            const createdAt = toLocalDateYmd(t.createdAt);
+            if (createdAt && dailyCounts.hasOwnProperty(createdAt)) dailyCounts[createdAt]++;
+        });
         const maxCount = Math.max(...Object.values(dailyCounts), 1);
         let html = '<div class="daily-chart-vertical">';
         dates.forEach(date => {

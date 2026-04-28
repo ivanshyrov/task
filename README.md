@@ -48,6 +48,32 @@ npx vercel dev
    - `SEATABLE_VIEW_NAME=Default`
 4. Нажмите `Deploy`.
 
+### CLI деплой (кодом)
+
+В `package.json` добавлены команды:
+
+```bash
+npm run deploy:preview
+npm run deploy:prod
+```
+
+Перед запуском задайте токен:
+
+```bash
+set VERCEL_TOKEN=your_token_here
+```
+
+### Автодеплой через GitHub Actions
+
+Добавлен workflow: `.github/workflows/deploy-vercel.yml`
+
+- Pull Request -> preview deployment
+- Push в `main` -> production deployment
+
+Нужно добавить секрет репозитория:
+
+- `VERCEL_TOKEN` — personal/team token из Vercel
+
 ## 4) Что уже добавлено
 
 - безопасная работа с SeaTable через backend:
