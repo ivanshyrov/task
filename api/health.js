@@ -24,10 +24,11 @@ module.exports = async (req, res) => {
 
     // Lightweight ping: one tiny SQL query on cloud, one tiny rows fetch on self-hosted.
     if (isV2) {
+      const tableName = process.env.SEATABLE_TABLE_NAME || "Tasks";
       await seatableRequest(accessMeta.access_token, `${baseUrl}/sql/`, {
         method: "POST",
         body: JSON.stringify({
-          sql: "SELECT 1 as ok LIMIT 1",
+          sql: `SELECT id FROM \`${tableName}\` LIMIT 1`,
           convert_keys: true,
         }),
         timeoutMs: 7000,
