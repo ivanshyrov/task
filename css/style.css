@@ -34,7 +34,11 @@ body::before{
 .app { position:relative; z-index:1; }
 .app { display:flex; flex-direction:column; min-height:100vh; }
 .login-screen { position:relative; display:flex; align-items:center; justify-content:center; min-height:100vh; overflow:hidden; background:
-    linear-gradient(135deg, rgba(15,95,191,0.94) 0%, rgba(27,127,228,0.96) 45%, rgba(12,99,204,0.94) 100%); }
+    linear-gradient(135deg, rgba(9,58,126,0.88) 0%, rgba(13,84,172,0.85) 45%, rgba(11,73,149,0.84) 100%),
+    url("../assets/theme-bg.png");
+    background-size:cover, cover;
+    background-position:center, center;
+    background-repeat:no-repeat, no-repeat; }
 .login-screen::before {
     content:"";
     position:absolute;
@@ -116,7 +120,15 @@ body::before{
 .menu-item:hover { background:rgba(255,255,255,0.08); }
 .menu-item.active { background:rgba(255,255,255,0.16); border-left-color:#fff; color:#fff; }
 .menu-divider { height:1px; background:rgba(255,255,255,0.12); margin:12px 0; }
-.main-content { flex:1; padding:24px; width:100%; max-width:100%; background:radial-gradient(circle at top right, rgba(46,134,230,0.08), transparent 20%), radial-gradient(circle at top left, rgba(216,171,50,0.08), transparent 14%); }
+.main-content { flex:1; padding:24px; width:100%; max-width:100%; background:
+    linear-gradient(180deg, rgba(246,251,255,0.94) 0%, rgba(237,244,251,0.95) 52%, rgba(231,240,249,0.97) 100%),
+    radial-gradient(circle at 12% 10%, rgba(46,134,230,0.12), transparent 28%),
+    radial-gradient(circle at 88% 8%, rgba(216,171,50,0.10), transparent 24%),
+    url("../assets/theme-bg.png");
+    background-size:auto, auto, auto, cover;
+    background-position:center, top left, top right, center;
+    background-repeat:no-repeat, no-repeat, no-repeat, no-repeat;
+    background-attachment:scroll, scroll, scroll, fixed; }
 .view { display:none; animation:fadeIn 0.3s ease; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 .view.active { display:block; }
@@ -631,6 +643,7 @@ body::before{
     /* ===== ОСНОВНОЙ КОНТЕНТ ===== */
     .main-content {
         padding: 12px;
+        background-attachment: scroll, scroll, scroll, scroll;
     }
     
     .view > h2 {
@@ -1357,167 +1370,3 @@ body.compact-mode .form-group {
     background: white;
 }
 
-/* ===== VISUAL REFRESH (taskspyanao) ===== */
-body {
-    font-family: Inter, "Segoe UI", Roboto, sans-serif;
-}
-
-.login-screen {
-    background:
-        radial-gradient(circle at 18% 16%, rgba(255,255,255,0.15), transparent 30%),
-        radial-gradient(circle at 82% 12%, rgba(59,130,246,0.22), transparent 28%),
-        linear-gradient(135deg, #0b4ea2 0%, #155fc1 45%, #1d7be0 100%);
-}
-
-.login-screen::before,
-.login-screen::after {
-    opacity: 0.09;
-}
-
-.login-card {
-    max-width: 540px;
-    border-radius: 30px;
-    padding: 48px 52px;
-    background: rgba(255, 255, 255, 0.94);
-}
-
-.login-header h1 {
-    font-size: 2.4rem;
-    letter-spacing: 0.01em;
-    margin-top: 6px;
-}
-
-.login-header p {
-    font-size: 1.05rem;
-    color: #36557a;
-    margin-top: 8px;
-}
-
-.login-form input,
-.login-card input {
-    border-radius: 14px;
-}
-
-.header {
-    height: 76px;
-    padding: 0 28px;
-    background: rgba(255, 255, 255, 0.93);
-}
-
-.brand-block {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.logo {
-    font-size: 1.48rem;
-    letter-spacing: 0.01em;
-}
-
-.brand-subtitle {
-    font-size: 0.76rem;
-    color: #617895;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    margin: 0;
-}
-
-.sidebar {
-    width: 312px;
-    left: -312px;
-    background: linear-gradient(180deg, #0d4f9c 0%, #0f5fb9 58%, #0b4c98 100%);
-}
-
-.sidebar::after {
-    display: none;
-}
-
-.sidebar-header {
-    padding: 20px 22px;
-    background: rgba(8, 43, 86, 0.2);
-}
-
-.menu-item {
-    border-left-width: 3px;
-    font-size: 1rem;
-    padding: 14px 22px;
-}
-
-.menu-item.active {
-    background: rgba(255,255,255,0.22);
-    border-left-color: #ffd27b;
-}
-
-.sidebar-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(8, 17, 32, 0.48);
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.22s ease, visibility 0.22s ease;
-    z-index: 990;
-}
-
-.sidebar-backdrop.show {
-    opacity: 1;
-    visibility: visible;
-}
-
-body.sidebar-open {
-    overflow: hidden;
-}
-
-.tasks-actions-panel,
-.table-wrapper,
-.stat-card,
-.stats-panel {
-    border-radius: 20px;
-}
-
-@media (max-width: 768px) {
-    .login-card {
-        width: calc(100% - 24px);
-        padding: 32px 20px;
-        border-radius: 22px;
-    }
-
-    .login-header h1 {
-        font-size: 2rem;
-    }
-
-    .login-header p {
-        font-size: 0.95rem;
-    }
-
-    .header {
-        height: 62px;
-        padding: 0 12px;
-    }
-
-    .brand-subtitle {
-        display: none;
-    }
-
-    .logo {
-        font-size: 1.1rem;
-    }
-
-    .header-right {
-        gap: 8px;
-    }
-
-    .health-badge,
-    .role-badge {
-        display: none;
-    }
-
-    .sidebar {
-        width: min(86vw, 320px);
-        left: -100%;
-    }
-
-    .sidebar.open {
-        left: 0 !important;
-    }
-}
