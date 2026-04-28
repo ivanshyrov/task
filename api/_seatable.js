@@ -204,11 +204,26 @@ function mapRowToTask(row) {
       return [];
     }
   };
+  const normalizeDate = (value) => {
+    if (!value) return "";
+    const text = String(value).trim();
+    if (!text) return "";
+    const isoLike = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoLike) return isoLike[1];
+    const ruLike = text.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (ruLike) return `${ruLike[3]}-${ruLike[2]}-${ruLike[1]}`;
+    const date = new Date(text);
+    if (Number.isNaN(date.getTime())) return "";
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
   return {
     row_id: wrapper._id || source._id || "",
     id: Number((source.id ?? source.ID ?? 0) || 0),
-    createdAt: source.created_at || "",
-    updatedAt: source.updated_at || "",
+    createdAt: normalizeDate(source.created_at),
+    updatedAt: normalizeDate(source.updated_at),
     databaseId: source.database_id || "db1",
     type: source.type || "",
     title: source.title || "",
@@ -220,13 +235,13 @@ function mapRowToTask(row) {
     phone: source.phone || "",
     priority: source.priority || "Средний",
     status: source.status || "Новая",
-    deadline: source.deadline || "",
+    deadline: normalizeDate(source.deadline),
     slaDays: Number(source.sla_days || 3),
-    assignedAt: source.assigned_at || "",
-    inProgressAt: source.in_progress_at || "",
-    reviewAt: source.review_at || "",
-    closedAt: source.closed_at || "",
-    rejectedAt: source.rejected_at || "",
+    assignedAt: normalizeDate(source.assigned_at),
+    inProgressAt: normalizeDate(source.in_progress_at),
+    reviewAt: normalizeDate(source.review_at),
+    closedAt: normalizeDate(source.closed_at),
+    rejectedAt: normalizeDate(source.rejected_at),
     rejectedReason: source.rejected_reason || "",
     report: source.report || "",
     comments: parseJsonField(source.comments),

@@ -611,6 +611,10 @@
     function refreshTaskRelatedUi() {
         renderTasks();
         updateStats();
+        const detailedStats = document.getElementById('detailedStats');
+        if (detailedStats && detailedStats.style.display === 'block') {
+            renderDetailedStats();
+        }
         populateDepartmentSelects();
         renderBasesList();
         savePersistedData();
@@ -1067,7 +1071,14 @@
         if (filterDepartment.value) tasks = tasks.filter(t => t.department === filterDepartment.value);
         if (filterPriority.value) tasks = tasks.filter(t => t.priority === filterPriority.value);
         if (filterStatus.value) tasks = tasks.filter(t => t.status === filterStatus.value);
-        if (filterDate.value) tasks = tasks.filter(t => toLocalDateYmd(t.deadline) === filterDate.value);
+        if (filterDate.value) {
+            const selectedDate = toLocalDateYmd(filterDate.value);
+            tasks = tasks.filter(t => {
+                const deadline = toLocalDateYmd(t.deadline);
+                const createdAt = toLocalDateYmd(t.createdAt);
+                return deadline === selectedDate || createdAt === selectedDate;
+            });
+        }
         if (searchTask.value) {
             const q = searchTask.value.toLowerCase();
             tasks = tasks.filter(t => t.description.toLowerCase().includes(q) || (t.title || '').toLowerCase().includes(q));
@@ -1650,7 +1661,10 @@
     }
 
     // ==================== ФИЛЬТРЫ И ЭКСПОРТ ====================
-    [filterDepartment, filterPriority, filterStatus, filterDate, searchTask, sortTasks].forEach(el => el?.addEventListener('input', renderTasks));
+    [filterDepartment, filterPriority, filterStatus, filterDate, searchTask, sortTasks].forEach(el => {
+        el?.addEventListener('input', renderTasks);
+        el?.addEventListener('change', renderTasks);
+    });
     filterDatabase?.addEventListener('change', e => {
         currentDatabaseId = e.target.value;
         if (reportDatabase) reportDatabase.value = currentDatabaseId;
