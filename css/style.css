@@ -17,15 +17,34 @@ body { font-family:'Segoe UI',Roboto,sans-serif; background:var(--bg-light); col
 .login-hint { margin-top:15px; font-size:0.85rem; color:var(--text-muted); text-align:center; }
 .header { display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:64px; background:white; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:20; }
 .header-left { display:flex; align-items:center; gap:16px; }
-.burger-btn { background:none; border:none; font-size:24px; cursor:pointer; color:var(--secondary); }
+.burger-btn { width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center; background:white; border:1px solid var(--border); border-radius:10px; font-size:24px; cursor:pointer; color:var(--secondary); line-height:1; box-shadow:var(--shadow-sm); }
+.burger-btn:hover { color:var(--primary); background:#f8fafc; border-color:#cbd5e1; }
 .logo { font-size:1.5rem; font-weight:600; color:var(--primary); }
 .header-right { display:flex; align-items:center; gap:20px; }
 .role-badge { display:flex; align-items:center; gap:8px; background:var(--bg-light); padding:6px 14px; border-radius:30px; border:1px solid var(--border); cursor:pointer; }
 .role-badge:hover { background:#fee2e2; border-color:var(--danger); }
-.notification-badge { position:relative; font-size:20px; color:var(--secondary); cursor:pointer; }
+.notification-badge { position:relative; font-size:20px; color:var(--secondary); cursor:pointer; display:flex; align-items:center; justify-content:center; width:40px; height:40px; border:1px solid transparent; border-radius:10px; }
+.notification-badge:hover { background:var(--bg-light); border-color:var(--border); color:var(--primary); }
 .badge-count { position:absolute; top:-6px; right:-8px; background:var(--danger); color:white; font-size:11px; font-weight:bold; padding:2px 6px; border-radius:12px; }
-.user-avatar { font-size:32px; color:var(--primary); cursor:pointer; display:flex; align-items:center; justify-content:center; width:40px; height:40px; }
+.user-avatar { font-size:32px; color:var(--primary); cursor:pointer; display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; border:1px solid transparent; background:transparent; }
+.user-avatar:hover { background:var(--bg-light); border-color:var(--border); }
 .user-avatar img { width:40px; height:40px; border-radius:50%; object-fit:cover; }
+.control-icon,
+.avatar-fallback {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    height:100%;
+    font-style:normal;
+    font-size:1rem;
+    line-height:1;
+    user-select:none;
+}
+.control-icon-burger { font-size:1.1rem; }
+.control-icon-role { font-size:1rem; }
+.control-icon-notification { font-size:1rem; }
+.avatar-fallback { font-size:1rem; color:var(--primary); }
 .sidebar { position:fixed; top:0; left:-100%; width:var(--sidebar-width); height:100vh; background:white; box-shadow:var(--shadow); z-index:1000; transition:left 0.3s; border-right:1px solid var(--border); }
 .sidebar.open { left:0; }
 .sidebar-header { display:flex; justify-content:space-between; padding:20px 24px; border-bottom:1px solid var(--border); }

@@ -5,24 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IT-SP · Планировщик задач</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 
-<!-- Font Awesome with integrity -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
-      integrity="sha512-Fo3rlrZj/k7ujTnHg4CGR2D7kSs0v4LLanw2qksYuRQEXTVF0+p7yXP3OMMsKp+hgIHFLvaXV50Deme+now8Fiw=="
-      crossorigin="anonymous" referrerpolicy="no-referrer">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 
-<link rel="stylesheet" href="css/style.css">
-
-<!-- Enforce HTTPS (skip for localhost) -->
-<script>
-  try {
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-      location.replace('https:' + window.location.href.substring(window.location.protocol.length));
-    }
-  } catch (e) { /* ignore */ }
-</script>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div id="loginScreen" class="login-screen">
@@ -52,21 +42,23 @@
     <div id="app" class="app" style="display: none;">
         <header class="header">
             <div class="header-left">
-                <button class="burger-btn" id="burgerBtn"><i class="fas fa-bars"></i></button>
+                <button class="burger-btn" id="burgerBtn" aria-label="Открыть меню" title="Меню">
+                    <span class="control-icon control-icon-burger" aria-hidden="true">☰</span>
+                </button>
                 <h1 class="logo">IT-SP · Планировщик</h1>
             </div>
             <div class="header-right">
-                <div class="role-badge" id="roleDisplay" style="cursor:pointer;" title="Выйти">
-                    <i class="fas fa-user-shield"></i>
+                <div class="role-badge" id="roleDisplay" style="cursor:pointer;" title="Выйти" aria-label="Профиль и выход">
+                    <span class="control-icon control-icon-role" aria-hidden="true">👤</span>
                     <span id="roleName">Администратор</span>
                 </div>
-                <div class="notification-badge" id="notificationBadge">
-                    <i class="fas fa-bell"></i>
+                <div class="notification-badge" id="notificationBadge" aria-label="Уведомления" title="Уведомления">
+                    <span class="control-icon control-icon-notification" aria-hidden="true">🔔</span>
                     <span class="badge-count" id="notificationCount">0</span>
                 </div>
-                <div class="user-avatar" id="profileBtn">
+                <div class="user-avatar" id="profileBtn" aria-label="Профиль пользователя" title="Профиль пользователя">
                     <img id="headerAvatar" src="" alt="avatar" style="display:none;">
-                    <i id="headerAvatarIcon" class="fas fa-user-circle"></i>
+                    <span id="headerAvatarIcon" class="avatar-fallback" aria-hidden="true">👤</span>
                 </div>
             </div>
         </header>

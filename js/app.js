@@ -1704,7 +1704,8 @@
         profileModal.classList.add('show');
     });
 
-    document.getElementById('profileForm').addEventListener('submit', async e => {
+    const profileFormEl = document.getElementById('profileForm');
+    profileFormEl?.addEventListener('submit', async e => {
         e.preventDefault();
         if (!currentUser) return;
         const result = await editUser(currentUser.username, {
@@ -1728,9 +1729,9 @@
         profileModal.classList.remove('show');
     });
 
-    document.getElementById('changeAvatarBtn').addEventListener('click', () => document.getElementById('avatarUpload').click());
-    document.getElementById('avatarUpload').addEventListener('change', e => {
-        const file = e.target.files[0];
+    document.getElementById('changeAvatarBtn')?.addEventListener('click', () => document.getElementById('avatarUpload')?.click());
+    document.getElementById('avatarUpload')?.addEventListener('change', e => {
+        const file = e.target.files?.[0];
         if (file) saveAvatar(file, currentUser.username);
     });
 
