@@ -59,67 +59,45 @@
     let lastSyncAttemptAt = 0;
 
     async function initUsers() {
-        const stored = localStorage.getItem(USERS_STORAGE_KEY);
-        if (stored) {
-            users = JSON.parse(stored);
-        } else {
-            // Первая инициализация: хешируем пароли и сохраняем
-            for (const user of DEFAULT_USERS) {
-                const passwordHash = await hashPassword(user.password);
-                users.push({
-                    username: user.username,
-                    passwordHash,
-                    role: user.role,
-                    department: user.department,
-                    fullName: user.fullName,
-                    position: user.position,
-                    email: user.email,
-                    phone: user.phone,
-                    office: user.office || ''
+        try {
+            // 1) загрузить пользователей из SeaTable (включая passwordHash)
+            let payload = await apiRequest(API_USERS);
+            let remoteUsers = Array.isArray(payload?.users) ? payload.users : [];
+
+            // 2) Если таблица пустая/не содержит стандартных админов — засеем DEFAULT_USERS.
+            const existing = new Set(remoteUsers.map(u => u.username));
+            for (const def of DEFAULT_USERS) {
+                if (existing.has(def.username)) continue;
+                const passwordHash = await hashPassword(def.password);
+                await apiRequest(API_USERS, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user: {
+                            username: def.username,
+                            passwordHash,
+                            role: def.role,
+                            department: def.department,
+                            fullName: def.fullName,
+                            position: def.position,
+                            email: def.email,
+                            phone: def.phone,
+                            office: def.office || '',
+                        }
+                    })
                 });
             }
-            saveUsers();
-        }
-        
-        // Загружаем пользователей из SeaTable (без паролей)
-        try {
-            const payload = await apiRequest(API_USERS);
-            const remoteUsers = Array.isArray(payload.users) ? payload.users : [];
-            
-            // Merge remote users with local password hashes
-            const localUsersMap = new Map(users.map(u => [u.username, u]));
-            
-            for (const remoteUser of remoteUsers) {
-                const localUser = localUsersMap.get(remoteUser.username);
-                if (localUser) {
-                    // Update user data from SeaTable, keep local passwordHash
-                    localUser.fullName = remoteUser.fullName || localUser.fullName;
-                    localUser.role = remoteUser.role || localUser.role;
-                    localUser.department = remoteUser.department || localUser.department;
-                    localUser.position = remoteUser.position || localUser.position;
-                    localUser.email = remoteUser.email || localUser.email;
-                    localUser.phone = remoteUser.phone || localUser.phone;
-                    localUser.office = remoteUser.office || localUser.office || '';
-                } else {
-                    // New user from SeaTable - add with empty passwordHash (cannot login until password is set)
-                    users.push({
-                        username: remoteUser.username,
-                        passwordHash: '', // No password hash - user exists in SeaTable but cannot login locally
-                        role: remoteUser.role || 'employee',
-                        department: remoteUser.department || '',
-                        fullName: remoteUser.fullName || '',
-                        position: remoteUser.position || '',
-                        email: remoteUser.email || '',
-                        phone: remoteUser.phone || '',
-                        office: remoteUser.office || ''
-                    });
-                }
-            }
-            
-            saveUsers();
-            console.log('[initUsers] synced with SeaTable:', users.length, 'users');
+
+            // 3) Повторно загрузить, чтобы взялись актуальные passwordHash из SeaTable.
+            payload = await apiRequest(API_USERS);
+            remoteUsers = Array.isArray(payload?.users) ? payload.users : [];
+            users = remoteUsers;
+            console.log('[initUsers] loaded from SeaTable:', users.length, 'users');
         } catch (error) {
-            console.log('[initUsers] offline mode, using localStorage only');
+            // fallback на старый кэш — если пользователь уже логинился ранее
+            console.log('[initUsers] SeaTable недоступен, fallback на localStorage', error?.message || String(error));
+            const stored = localStorage.getItem(USERS_STORAGE_KEY);
+            if (!stored) throw error;
+            users = JSON.parse(stored);
         }
 
         // Нормализация главного админа (чтобы не терялись поля из старых сохранений/пустого SeaTable)
@@ -128,11 +106,13 @@
             if (!adminUser.office) adminUser.office = '222';
         }
         if (currentUser?.username === 'admin' && !currentUser.office) currentUser.office = '222';
-        saveUsers();
     }
 
     function saveUsers() {
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+        // deprecated: users/password hashes теперь должны жить в SeaTable
+        try {
+            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+        } catch {}
     }
 
     // Синхронизация пользователя с SeaTable
@@ -298,7 +278,6 @@
             office: sanitizeHTML(userData.office || '')
         };
         users.push(newUser);
-        saveUsers();
         // Синхронизация с SeaTable (если нужно)
         void syncUserToSeaTable(newUser, 'create');
         return { success: true, user: newUser };
@@ -333,8 +312,7 @@
             currentUser = { ...user };
             updateHeaderAvatar();
         }
-        
-        saveUsers();
+
         await syncTasksForUserRename(previousFullName, user.fullName);
         void syncUserToSeaTable(user, 'update', previousUsername);
         return { success: true, user };
@@ -348,7 +326,6 @@
         if (idx < 0) return { success: false, error: 'Пользователь не найден' };
         const deletedUser = users[idx];
         users.splice(idx, 1);
-        saveUsers();
         void syncUserToSeaTable(deletedUser, 'delete');
         return { success: true };
     }
@@ -407,10 +384,17 @@
         'Перенос техники, подготовка нового РМ',
         'Телефонная связь',
         'Перевести из PDF в Word',
+        // Направления, полезные для аналитических задач
+        'Аналитика и отчётность',
+        'Анализ SLA и качество сервиса',
+        'BI / Дашборды',
+        'Сбор требований и ТЗ',
+        // Организационные задачи
+        'Забронировать зал Коллегии',
         'Идеи и предложения'
     ];
     const FALLBACK_DIRECTION_ON_DELETE = 'Идеи и предложения';
-    let FULL_DEPARTMENTS = [...SUPPORT_DIRECTIONS];
+    let FULL_DEPARTMENTS = [];
 
     let currentDatabaseId = 'db1';
     let currentUser = null;
@@ -422,6 +406,7 @@
     const taskRowMap = new Map();
     const API_BASE = '/api/tasks';
     const API_USERS = '/api/users';
+    const API_DIRECTIONS = '/api/directions';
     const API_HEALTH = '/api/health';
 
     // Стандартные пользователи (для первой инициализации)
@@ -438,7 +423,8 @@
         { name: 'Козлова Д.С.', position: 'Маркетолог', department: 'Маркетинг', phone: '2-22-52', email: 'kozlova@it-sp.ru' }
     ];
     // Локальный справочник направлений (можно редактировать на вкладке "Направления")
-    let departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
+    // Направления грузятся из SeaTable, чтобы они были одинаковыми на всех устройствах.
+    let departmentsData = [];
 
     // ==================== DOM ====================
     const loginScreen = document.getElementById('loginScreen');
@@ -595,7 +581,8 @@
     }
 
     function loadPersistedData() {
-        departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
+        // Направления теперь берём из SeaTable, поэтому локальная загрузка не нужна.
+        departmentsData = [];
     }
 
     function savePersistedData() {
@@ -604,6 +591,45 @@
 
     function syncDepartmentsFromApi() {
         // больше не синхронизируем направления с SeaTable — это локальный справочник UI
+    }
+
+    async function fetchDirectionsFromApi() {
+        const payload = await apiRequest(API_DIRECTIONS, { timeoutMs: 12000 });
+        const directions = Array.isArray(payload?.directions) ? payload.directions : [];
+        return directions.map(d => ({ name: String(d?.name || '').trim() })).filter(d => d.name);
+    }
+
+    async function seedDirectionsIfEmpty() {
+        const current = await fetchDirectionsFromApi();
+        const existing = new Set(current.map(d => d.name));
+
+        // Добавляем все стандартные направления, которых ещё нет в SeaTable.
+        const seedNames = Array.from(
+            new Set(SUPPORT_DIRECTIONS.map(n => String(n).trim()).filter(Boolean))
+        );
+
+        for (const name of seedNames) {
+            if (existing.has(name)) continue;
+            try {
+                await apiRequest(API_DIRECTIONS, {
+                    method: "POST",
+                    body: JSON.stringify({ name }),
+                    timeoutMs: 12000,
+                });
+            } catch (e) {
+                // Если кто-то параллельно добавил то же значение — игнорируем.
+                const msg = e?.message || String(e);
+                if (!msg.toLowerCase().includes("уже существует")) throw e;
+            }
+        }
+
+        return fetchDirectionsFromApi();
+    }
+
+    async function initDirections() {
+        const seeded = await seedDirectionsIfEmpty();
+        departmentsData = seeded;
+        FULL_DEPARTMENTS = Array.from(new Set(departmentsData.map(d => d.name))).filter(Boolean);
     }
 
     function refreshTaskRelatedUi() {
@@ -962,8 +988,7 @@
 
     async function initApp() {
         purgeLocalPlannerData();
-        loadPersistedData();
-        syncDepartmentsFromApi();
+        await initDirections();
         let maxId = 0;
         databases.forEach(db => db.tasks.forEach(t => {
             normalizeTask(t);
@@ -971,10 +996,7 @@
         }));
         dataLoaded = true;
         nextTaskId = maxId + 1;
-        FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
-        // Зафиксировать справочник направлений и другие данные в localStorage,
-        // чтобы после перезагрузки страницы он сохранялся.
-        savePersistedData();
+        // FULL_DEPARTMENTS уже задан в initDirections().
         populateDatabaseSelects();
         populateDepartmentSelects();
         renderTasks();
@@ -1864,22 +1886,29 @@
             const dept = departmentsData[idx];
             showConfirmModal('Удалить направление?', `Удалить "${dept.name}"?`, async () => {
                 const deletedName = dept.name;
-                const fallback = deletedName === FALLBACK_DIRECTION_ON_DELETE
-                    ? (SUPPORT_DIRECTIONS.find(d => d !== deletedName) || 'Идеи и предложения')
-                    : FALLBACK_DIRECTION_ON_DELETE;
+                const fallback =
+                    deletedName === FALLBACK_DIRECTION_ON_DELETE
+                        ? (departmentsData.find(d => d.name !== deletedName)?.name || FALLBACK_DIRECTION_ON_DELETE)
+                        : FALLBACK_DIRECTION_ON_DELETE;
 
                 try {
                     // Сначала переназначаем все задачи, где было удаляемое направление.
                     await syncTasksForDirectionRename(deletedName, fallback);
+                    // Затем удаляем направление из SeaTable.
+                    await apiRequest(API_DIRECTIONS, {
+                        method: 'DELETE',
+                        body: JSON.stringify({ name: deletedName }),
+                        timeoutMs: 12000,
+                    });
                 } catch (error) {
-                    setSyncBanner(`Не удалось переназначить задачи перед удалением направления: ${error.message}`, true);
+                    setSyncBanner(`Не удалось удалить направление: ${error.message}`, true);
+                    showToast('Ошибка удаления направления', 'error');
                     return;
                 }
-                departmentsData = departmentsData.filter((_, i) => i !== idx);
-                FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
+
+                await initDirections();
                 populateDepartmentSelects();
                 renderDepartments();
-                savePersistedData();
                 showToast(`Направление удалено (задачи перенесены в "${fallback}")`, 'success');
             });
         }));
@@ -2163,13 +2192,22 @@
             return;
         }
 
-        departmentsData.push({ name });
-        FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
-        populateDepartmentSelects();
-        renderDepartments();
-        addDepartmentModal.classList.remove('show');
-        savePersistedData();
-        showToast(`Направление "${name}" добавлено`, 'success');
+        void (async () => {
+            try {
+                await apiRequest(API_DIRECTIONS, {
+                    method: 'POST',
+                    body: JSON.stringify({ name }),
+                    timeoutMs: 12000,
+                });
+                await initDirections();
+                populateDepartmentSelects();
+                renderDepartments();
+                addDepartmentModal.classList.remove('show');
+                showToast(`Направление "${name}" добавлено`, 'success');
+            } catch (error) {
+                showToast(error?.message || 'Ошибка при добавлении направления', 'error');
+            }
+        })();
     });
 
     const editDepartmentForm = document.getElementById('editDepartmentForm');
@@ -2187,24 +2225,41 @@
 
         const snapshot = JSON.parse(JSON.stringify(prev));
         const oldName = prev.name;
+
+        // Запрещаем дубликаты (кроме текущего направления)
+        if (departmentsData.some((d, i) => i !== idx && String(d?.name || '').toLowerCase() === name.toLowerCase())) {
+            showToast('Такое направление уже существует', 'error');
+            return;
+        }
+
         prev.name = name;
-        FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
+        FULL_DEPARTMENTS = Array.from(new Set(departmentsData.map(d => d.name))).filter(Boolean);
         populateDepartmentSelects();
         renderDepartments();
-        savePersistedData();
         editDepartmentModal?.classList.remove('show');
 
-        // Локально + обновление задач и синхронизация с SeaTable
-        showToast('Направление обновлено', 'success');
         try {
             await syncTasksForDirectionRename(oldName, name);
-        } catch (error) {
-            Object.assign(prev, snapshot);
-            FULL_DEPARTMENTS = Array.from(new Set([...SUPPORT_DIRECTIONS, ...departmentsData.map(d => d.name)])).filter(Boolean);
+            await apiRequest(API_DIRECTIONS, {
+                method: 'PUT',
+                body: JSON.stringify({ oldName, name }),
+                timeoutMs: 12000,
+            });
+
+            await initDirections();
             populateDepartmentSelects();
             renderDepartments();
-            savePersistedData();
-            setSyncBanner(`Не удалось применить изменение направления к задачам: ${error.message}`, true);
+            showToast('Направление обновлено', 'success');
+        } catch (error) {
+            Object.assign(prev, snapshot);
+            // Пробуем откатить задачи на старое значение направления.
+            await syncTasksForDirectionRename(name, oldName);
+
+            await initDirections();
+            populateDepartmentSelects();
+            renderDepartments();
+            setSyncBanner(`Не удалось обновить направление в SeaTable: ${error.message}`, true);
+            showToast('Ошибка обновления направления', 'error');
         }
     });
 
