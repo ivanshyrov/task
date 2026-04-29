@@ -627,9 +627,18 @@
     }
 
     async function initDirections() {
-        const seeded = await seedDirectionsIfEmpty();
-        departmentsData = seeded;
-        FULL_DEPARTMENTS = Array.from(new Set(departmentsData.map(d => d.name))).filter(Boolean);
+        try {
+            const seeded = await seedDirectionsIfEmpty();
+            departmentsData = seeded;
+            FULL_DEPARTMENTS = Array.from(new Set(departmentsData.map(d => d.name))).filter(Boolean);
+        } catch (error) {
+            console.error('[initDirections] failed', error);
+            // Чтобы сайт не "падал" при проблемах с API, используем локальный fallback.
+            // Но направления всё равно попробуем восстановить при повторном заходе.
+            departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
+            FULL_DEPARTMENTS = Array.from(new Set(departmentsData.map(d => d.name))).filter(Boolean);
+            showToast(`Не удалось загрузить направления из SeaTable: ${error?.message || String(error)}`, 'error');
+        }
     }
 
     function refreshTaskRelatedUi() {
@@ -951,7 +960,12 @@
         applyRole(currentUser.role);
         loginScreen.style.display = 'none';
         app.style.display = 'flex';
-        await initApp();
+        try {
+            await initApp();
+        } catch (error) {
+            console.error('[login] initApp failed', error);
+            showToast(`Ошибка инициализации: ${error?.message || String(error)}`, 'error');
+        }
         if (currentUser.role === 'employee') {
             switchView('tasks');
             openQuickTaskBtn.click();
