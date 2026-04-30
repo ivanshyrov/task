@@ -12,8 +12,7 @@
     "deploy:prod": "vercel --prod --yes --token \"$VERCEL_TOKEN\""
   },
   "dependencies": {
-    "@vercel/speed-insights": "^2.0.0",
-    "node-fetch": "^2.7.0"
+    "@vercel/speed-insights": "^2.0.0"
   },
   "engines": {
     "node": ">=22 <25"

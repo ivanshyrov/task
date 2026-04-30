@@ -1,5 +1,10 @@
 {
   "outputDirectory": ".",
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs22.x"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/tasks/:id",

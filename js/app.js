@@ -1685,13 +1685,15 @@
             db.tasks.push(newTask);
             refreshTaskRelatedUi();
             const payload = await apiRequest(API_BASE, { method: 'POST', body: JSON.stringify(newTask) });
-            if (payload?.task) {
-                Object.assign(newTask, payload.task);
-                if (payload.task.row_id) taskRowMap.set(newTask.id, payload.task.row_id);
-                nextTaskId = Math.max(nextTaskId, Number(newTask.id) + 1);
-                addNotification(`Новая задача #${newTask.id} от ${newTask.author}`, newTask.id);
-                refreshTaskRelatedUi();
+            const createdTask = payload?.task || null;
+            if (!createdTask || !createdTask.row_id || !Number.isFinite(Number(createdTask.id))) {
+                throw new Error('SeaTable не подтвердил создание задачи');
             }
+            Object.assign(newTask, createdTask);
+            taskRowMap.set(newTask.id, createdTask.row_id);
+            nextTaskId = Math.max(nextTaskId, Number(newTask.id) + 1);
+            addNotification(`Новая задача #${newTask.id} от ${newTask.author}`, newTask.id);
+            refreshTaskRelatedUi();
             quickTaskForm.reset();
             quickTaskForm.querySelector('input[name="database"]').value = currentDatabaseId;
             quickTaskForm.querySelector('input[name="department"]').value = '';

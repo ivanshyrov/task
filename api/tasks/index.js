@@ -86,6 +86,31 @@ module.exports = async (req, res) => {
       return Array.isArray(list) ? list.find((item) => Number((item?.row || item)?.id) === Number(taskId)) || null : null;
     }
 
+    async function fetchTaskByRowId(rowId) {
+      if (!rowId) return null;
+      if (isV2) {
+        const sqlUrl = `${baseUrl}/sql/`;
+        const result = await seatableRequest(accessMeta.access_token, sqlUrl, {
+          method: "POST",
+          body: JSON.stringify({
+            sql: `SELECT * FROM \`${TABLE_NAME}\` WHERE \`_id\` = ? LIMIT 1`,
+            convert_keys: true,
+            parameters: [rowId],
+          }),
+        });
+        return Array.isArray(result?.results) && result.results.length ? result.results[0] : null;
+      }
+      const rows = await seatableRequest(accessMeta.access_token, rowsUrlBase, { method: "GET" });
+      const list =
+        (Array.isArray(rows) ? rows : null) ||
+        rows?.rows ||
+        rows?.results ||
+        rows?.data?.rows ||
+        rows?.data?.results ||
+        [];
+      return Array.isArray(list) ? list.find((item) => (item?._id || item?.row?._id) === rowId) || null : null;
+    }
+
     function normalizeDate(value) {
       return String(value || "").slice(0, 10);
     }
@@ -188,19 +213,31 @@ module.exports = async (req, res) => {
           body: JSON.stringify(body),
         });
         if (isV2) {
-          // SeaTable responses can omit the row data; re-fetch by assigned id to return canonical payload.
+          // SeaTable responses can omit row payload; re-fetch canonical row.
           const assignedId = row.id;
-          const sqlUrl = `${baseUrl}/sql/`;
-          const fetched = await seatableRequest(accessMeta.access_token, sqlUrl, {
-            method: "POST",
-            body: JSON.stringify({
-              sql: `SELECT * FROM \`${TABLE_NAME}\` WHERE \`id\` = ? LIMIT 1`,
-              convert_keys: true,
-              parameters: [assignedId],
-            }),
-          });
-          const canonical = Array.isArray(fetched?.results) && fetched.results.length ? fetched.results[0] : null;
-          if (canonical) created = canonical;
+          const createdRowId = created?.rows?.[0]?._id || created?._id || null;
+          let canonical = null;
+
+          if (Number.isFinite(Number(assignedId))) {
+            for (let attempt = 0; attempt < 3; attempt++) {
+              canonical = await fetchTaskById(assignedId);
+              if (canonical) break;
+              await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+            }
+          }
+
+          if (!canonical && createdRowId) {
+            for (let attempt = 0; attempt < 3; attempt++) {
+              canonical = await fetchTaskByRowId(createdRowId);
+              if (canonical) break;
+              await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+            }
+          }
+
+          if (!canonical) {
+            throw new Error("SeaTable create verification failed: row not found after insert");
+          }
+          created = canonical;
         }
       } catch (firstError) {
         const msg = firstError?.message || String(firstError);
