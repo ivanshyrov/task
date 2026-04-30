@@ -10,6 +10,9 @@ const {
 const TABLE_NAME = process.env.SEATABLE_USERS_TABLE || "Users";
 
 module.exports = async (req, res) => {
+  if (typeof res?.setHeader === "function") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  }
   const debug = {
     method: req.method,
     table: TABLE_NAME,
@@ -112,9 +115,35 @@ module.exports = async (req, res) => {
     // POST - создать пользователя
     if (req.method === "POST") {
       const { user } = req.body;
+      const username = String(user?.username || "").trim();
+      if (!username) {
+        return res.status(400).json({ error: "Требуется user.username" });
+      }
+
+      // Защита от дублей на стороне API (SeaTable - источник истины).
+      let existingRow = null;
+      if (isV2) {
+        const sqlUrl = `${baseUrl}/sql/`;
+        const result = await seatableRequest(accessMeta.access_token, sqlUrl, {
+          method: "POST",
+          body: JSON.stringify({
+            sql: `SELECT \`_id\` FROM \`${TABLE_NAME}\` WHERE \`username\` = ? LIMIT 1`,
+            convert_keys: true,
+            parameters: [username],
+          }),
+        });
+        existingRow = Array.isArray(result?.results) && result.results.length ? result.results[0] : null;
+      } else {
+        const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
+        const list = Array.isArray(rows) ? rows : rows?.rows || [];
+        existingRow = list.find((item) => (item?.row || item)?.username === username) || null;
+      }
+      if (existingRow) {
+        return res.status(409).json({ error: "Пользователь с таким логином уже существует" });
+      }
       
       const row = {
-        username: user.username,
+        username,
         full_name: user.fullName,
         role: user.role || "employee",
         department: user.department || "",
@@ -125,7 +154,7 @@ module.exports = async (req, res) => {
         password_hash: user.passwordHash || ""
       };
 
-      console.log("[users] creating", { username: user.username, role: user.role });
+      console.log("[users] creating", { username, role: user.role });
 
       let created;
       try {
@@ -156,7 +185,7 @@ module.exports = async (req, res) => {
       return res.status(201).json({ 
         success: true, 
         user: {
-          username: user.username,
+          username,
           fullName: user.fullName,
           role: user.role,
           department: user.department,

@@ -64,9 +64,9 @@
             let payload = await apiRequest(API_USERS);
             let remoteUsers = Array.isArray(payload?.users) ? payload.users : [];
 
-            // 2) Если таблица пустая/не содержит стандартных админов — засеем DEFAULT_USERS.
+            // 2) Автосоздаём только главного admin, чтобы не "оживлять" director/employee.
             const existing = new Set(remoteUsers.map(u => u.username));
-            for (const def of DEFAULT_USERS) {
+            for (const def of DEFAULT_USERS.filter(u => u.username === 'admin')) {
                 if (existing.has(def.username)) continue;
                 const passwordHash = await hashPassword(def.password);
                 await apiRequest(API_USERS, {
@@ -601,6 +601,7 @@
 
     async function seedDirectionsIfEmpty() {
         const current = await fetchDirectionsFromApi();
+        if (current.length > 0) return current;
         const existing = new Set(current.map(d => d.name));
 
         // Добавляем все стандартные направления, которых ещё нет в SeaTable.
@@ -623,13 +624,17 @@
             }
         }
 
-        return fetchDirectionsFromApi();
+        const refreshed = await fetchDirectionsFromApi();
+        if (refreshed.length > 0) return refreshed;
+        return seedNames.map(name => ({ name }));
     }
 
     async function initDirections() {
         try {
-            const seeded = await seedDirectionsIfEmpty();
-            departmentsData = seeded;
+            // SeaTable - основной источник истины.
+            const fromApi = await fetchDirectionsFromApi();
+            const loaded = fromApi.length ? fromApi : await seedDirectionsIfEmpty();
+            departmentsData = loaded;
             FULL_DEPARTMENTS = Array.from(new Set(departmentsData.map(d => d.name))).filter(Boolean);
         } catch (error) {
             console.error('[initDirections] failed', error);
@@ -876,11 +881,13 @@
         const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 12000;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        const method = String(options.method || 'GET').toUpperCase();
         let response;
         try {
             response = await fetch(url, {
                 headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
                 signal: controller.signal,
+                ...(method === 'GET' ? { cache: 'no-store' } : {}),
                 ...options
             });
         } catch (e) {

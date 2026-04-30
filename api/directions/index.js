@@ -10,6 +10,9 @@ const {
 const TABLE_NAME = process.env.SEATABLE_DIRECTIONS_TABLE || "Directions";
 
 module.exports = async (req, res) => {
+  if (typeof res?.setHeader === "function") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  }
   const debug = {
     method: req.method,
     table: TABLE_NAME,
