@@ -669,6 +669,7 @@
         app.style.display = 'none';
         loginScreen.style.display = 'flex';
         sidebar.classList.remove('open');
+        activeQuickFilter = '';
     }
 
     function getAppSettings() {
@@ -712,6 +713,17 @@
         defaultViewSelect.value = resolveStartView(defaultViewSelect.value);
     }
 
+    function resetTaskFiltersForSession() {
+        activeQuickFilter = '';
+        quickFilterButtons.forEach(b => b.classList.remove('active'));
+        if (filterDepartment) filterDepartment.value = '';
+        if (filterPriority) filterPriority.value = '';
+        if (filterStatus) filterStatus.value = '';
+        if (filterDate) filterDate.value = '';
+        if (searchTask) searchTask.value = '';
+        if (sortTasks) sortTasks.value = 'createdAt_desc';
+    }
+
     function normalizeTask(task) {
         if (task.status === 'Завершена') task.status = 'Закрыта';
         if (!TASK_STATUSES.includes(task.status)) task.status = 'Новая';
@@ -747,6 +759,23 @@
             reader.onerror = () => reject(new Error('Не удалось прочитать файл вложения'));
             reader.readAsDataURL(file);
         });
+    }
+
+    function resolveAttachmentUrl(attachment) {
+        const raw = String(attachment?.url || attachment?.dataUrl || attachment?.download_link || attachment?.file_url || '').trim();
+        if (!raw) return '';
+        if (raw.startsWith('data:')) return raw;
+        if (/^https?:\/\//i.test(raw)) return raw;
+        if (raw.startsWith('/')) return raw;
+        return `https://cloud.seatable.io${raw.startsWith('/') ? '' : '/'}${raw}`;
+    }
+
+    function formatAttachmentSize(size) {
+        const value = Number(size || 0);
+        if (!Number.isFinite(value) || value <= 0) return '';
+        if (value < 1024) return `${value} B`;
+        if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+        return `${(value / (1024 * 1024)).toFixed(1)} MB`;
     }
 
     function validateTaskShape(task) {
@@ -1009,6 +1038,7 @@
 
     async function initApp() {
         purgeLocalPlannerData();
+        resetTaskFiltersForSession();
         await initDirections();
         let maxId = 0;
         databases.forEach(db => db.tasks.forEach(t => {
@@ -1033,7 +1063,7 @@
         }
         switchView(resolveStartView(settings.defaultView));
         updateHeaderAvatar();
-        void syncTasksFromApi();
+        await syncTasksFromApi();
         void pingSeatableHealth();
         if (healthPingTimer) clearInterval(healthPingTimer);
         healthPingTimer = setInterval(() => {
@@ -1483,8 +1513,13 @@
         if (!taskAttachmentsList) return;
         taskAttachmentsList.innerHTML = task.attachments.map((a, idx) =>
             `<div class="comment-item">
-                <div class="comment-meta">${a.author} · ${new Date(a.createdAt).toLocaleString('ru-RU')}</div>
-                <a href="${a.dataUrl}" download="${a.name}">${a.name}</a>
+                <div class="comment-meta">${a.author || 'Система'} · ${a.createdAt ? new Date(a.createdAt).toLocaleString('ru-RU') : 'без даты'}</div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <i class="fas fa-paperclip" aria-hidden="true"></i>
+                    <span>${a.name || 'Файл'}</span>
+                    ${formatAttachmentSize(a.size) ? `<span class="comment-meta">(${formatAttachmentSize(a.size)})</span>` : ''}
+                    ${resolveAttachmentUrl(a) ? `<a href="${resolveAttachmentUrl(a)}" download="${a.name || 'file'}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm">Скачать</a>` : ''}
+                </div>
                 <button type="button" class="icon-btn remove-attachment-btn" data-index="${idx}" title="Удалить"><i class="fas fa-trash"></i></button>
             </div>`
         ).join('') || '<div class="comment-item"><div class="comment-meta">Вложений пока нет</div></div>';
@@ -1598,6 +1633,8 @@
                 initialAttachments = [{
                     name: attachment.name,
                     dataUrl,
+                    size: Number(attachment.size || 0),
+                    type: String(attachment.type || ''),
                     author: currentUser.fullName,
                     createdAt: new Date().toISOString()
                 }];
@@ -2510,6 +2547,7 @@
                 context.task.attachments.push({
                     name: file.name,
                     size: file.size,
+                    type: String(file.type || ''),
                     dataUrl: String(reader.result || ''),
                     author: currentUser.fullName,
                     createdAt: new Date().toISOString()

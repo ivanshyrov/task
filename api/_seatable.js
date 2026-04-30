@@ -283,6 +283,120 @@ function mapTaskToRow(task) {
   };
 }
 
+function parseDataUrl(dataUrl) {
+  const text = String(dataUrl || "");
+  const match = text.match(/^data:([^;,]+)?;base64,(.+)$/);
+  if (!match) return null;
+  return {
+    mimeType: match[1] || "application/octet-stream",
+    base64: match[2],
+  };
+}
+
+async function uploadAttachmentToSeaTable(accessMeta, attachment) {
+  const source = attachment && typeof attachment === "object" ? attachment : {};
+  const hasRemoteUrl = typeof source.url === "string" && source.url.trim() && !source.url.startsWith("data:");
+  if (hasRemoteUrl) {
+    const normalized = {
+      name: source.name || "attachment",
+      url: source.url,
+      size: Number(source.size || 0) || 0,
+      type: source.type || "",
+    };
+    if (source.createdAt) normalized.createdAt = String(source.createdAt);
+    if (source.author) normalized.author = String(source.author);
+    return normalized;
+  }
+
+  const rawDataUrl = typeof source.dataUrl === "string" ? source.dataUrl : String(source.url || "");
+  const parsed = parseDataUrl(rawDataUrl);
+  if (!parsed) {
+    return {
+      name: source.name || "attachment",
+      url: String(source.url || ""),
+      size: Number(source.size || 0) || 0,
+      type: source.type || "",
+    };
+  }
+
+  const uploadMetaUrl = `${getServerBase()}/api/v2.1/dtable/app-upload-link/`;
+  const uploadMeta = await seatableRequest(accessMeta.access_token, uploadMetaUrl, { method: "GET" });
+  const uploadLink = uploadMeta?.upload_link || uploadMeta?.url;
+  if (!uploadLink) {
+    throw new Error("SeaTable upload link is missing");
+  }
+
+  const buffer = Buffer.from(parsed.base64, "base64");
+  const extByMime = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "text/plain": "txt",
+    "text/csv": "csv",
+    "application/pdf": "pdf",
+  };
+  const fallbackExt = extByMime[parsed.mimeType] || "bin";
+  const fileName = String(source.name || `attachment-${Date.now()}.${fallbackExt}`);
+  const formData = new FormData();
+  formData.append("file", new Blob([buffer], { type: parsed.mimeType }), fileName);
+  if (uploadMeta?.parent_path) {
+    formData.append("parent_dir", String(uploadMeta.parent_path));
+  }
+
+  let uploadResponse = await fetch(uploadLink, { method: "POST", body: formData });
+  if (!uploadResponse.ok) {
+    uploadResponse = await fetch(uploadLink, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessMeta.access_token}` },
+      body: formData,
+    });
+  }
+  if (!uploadResponse.ok) {
+    const body = await uploadResponse.text();
+    throw new Error(`SeaTable attachment upload failed: ${uploadResponse.status} ${body}`);
+  }
+
+  const uploaded = await uploadResponse.json();
+  let url = uploaded?.url || uploaded?.download_link || uploaded?.file_url || "";
+  if (url && !/^https?:\/\//i.test(url)) {
+    if (!url.startsWith("/")) url = `/${url}`;
+    url = `${getServerBase()}${url}`;
+  }
+  const normalized = {
+    name: uploaded?.name || fileName,
+    url,
+    size: Number(uploaded?.size || buffer.length) || buffer.length,
+    type: uploaded?.type || parsed.mimeType || source.type || "",
+  };
+  if (source.createdAt) normalized.createdAt = String(source.createdAt);
+  if (source.author) normalized.author = String(source.author);
+  return normalized;
+}
+
+async function normalizeAttachmentsForSeaTable(accessMeta, attachments) {
+  const list = Array.isArray(attachments) ? attachments : [];
+  const normalized = [];
+  for (const item of list) {
+    try {
+      normalized.push(await uploadAttachmentToSeaTable(accessMeta, item));
+    } catch (error) {
+      console.warn("[seatable] attachment upload failed; keep existing value", {
+        message: error?.message || String(error),
+      });
+      normalized.push({
+        name: String(item?.name || "attachment"),
+        url: String(item?.url || item?.dataUrl || ""),
+        size: Number(item?.size || 0) || 0,
+        type: String(item?.type || ""),
+        ...(item?.createdAt ? { createdAt: String(item.createdAt) } : {}),
+        ...(item?.author ? { author: String(item.author) } : {}),
+      });
+    }
+  }
+  return normalized;
+}
+
 function buildUpdateRequestBody({ isV2, tableName, rowId, row }) {
   if (!rowId) {
     throw new Error("rowId is required for update body");
@@ -321,5 +435,6 @@ module.exports = {
   getRowsBaseUrl,
   mapRowToTask,
   mapTaskToRow,
+  normalizeAttachmentsForSeaTable,
   seatableRequest,
 };

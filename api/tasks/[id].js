@@ -5,8 +5,11 @@ const {
   getRowsBaseUrl,
   mapRowToTask,
   mapTaskToRow,
+  normalizeAttachmentsForSeaTable,
   seatableRequest,
 } = require("../_seatable");
+const fallbackNormalizeAttachments = async (_accessMeta, attachments) =>
+  Array.isArray(attachments) ? attachments : [];
 
 const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
 const VIEW_NAME = process.env.SEATABLE_VIEW_NAME || "Default";
@@ -120,7 +123,15 @@ module.exports = async (req, res) => {
       debug.resolvedRowId = rowId || null;
       if (!rowId) return res.status(404).json({ error: "Task not found (cannot resolve row_id)", debug });
 
+      const normalizedAttachments = await (
+        typeof normalizeAttachmentsForSeaTable === "function"
+          ? normalizeAttachmentsForSeaTable
+          : fallbackNormalizeAttachments
+      )(accessMeta, req.body?.attachments);
       const row = mapTaskToRow({ ...req.body, id: Number(id) });
+      if (Array.isArray(normalizedAttachments) && normalizedAttachments.length > 0) {
+        row.attachments = normalizedAttachments;
+      }
       await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {
         method: "PUT",
         body: JSON.stringify(buildUpdateRequestBody({

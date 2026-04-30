@@ -5,8 +5,11 @@ const {
   getRowsBaseUrl,
   mapRowToTask,
   mapTaskToRow,
+  normalizeAttachmentsForSeaTable,
   seatableRequest,
 } = require("../_seatable");
+const fallbackNormalizeAttachments = async (_accessMeta, attachments) =>
+  Array.isArray(attachments) ? attachments : [];
 
 const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
 const VIEW_NAME = process.env.SEATABLE_VIEW_NAME || "Default";
@@ -147,7 +150,15 @@ module.exports = async (req, res) => {
 
     if (req.method === "POST") {
       const task = req.body || {};
+      const normalizedAttachments = await (
+        typeof normalizeAttachmentsForSeaTable === "function"
+          ? normalizeAttachmentsForSeaTable
+          : fallbackNormalizeAttachments
+      )(accessMeta, task.attachments);
       const row = mapTaskToRow(task);
+      if (Array.isArray(normalizedAttachments) && normalizedAttachments.length > 0) {
+        row.attachments = normalizedAttachments;
+      }
       console.log("[tasks] prepared-row", {
         rowKeys: Object.keys(row || {}),
         idValue: row?.id,
@@ -210,7 +221,15 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: "Требуется row_id" });
       }
 
+      const normalizedAttachments = await (
+        typeof normalizeAttachmentsForSeaTable === "function"
+          ? normalizeAttachmentsForSeaTable
+          : fallbackNormalizeAttachments
+      )(accessMeta, task.attachments);
       const row = mapTaskToRow(task);
+      if (Array.isArray(normalizedAttachments) && normalizedAttachments.length > 0) {
+        row.attachments = normalizedAttachments;
+      }
       console.log("[tasks] updating", { rowId, taskId, row });
 
       const body = buildUpdateRequestBody({
