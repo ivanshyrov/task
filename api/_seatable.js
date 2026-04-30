@@ -325,8 +325,29 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
     };
   }
 
-  const uploadMetaUrl = `${getServerBase()}/api/v2.1/dtable/app-upload-link/`;
-  const uploadMeta = await seatableRequest(accessMeta.access_token, uploadMetaUrl, { method: "GET" });
+  const dtableServerBase = String(accessMeta?.dtable_server || "").replace(/\/+$/, "");
+  const candidateUploadMetaUrls = [];
+  if (dtableServerBase) {
+    // Cloud often returns api-gateway server; app-upload-link can live there.
+    candidateUploadMetaUrls.push(`${dtableServerBase}/api/v2.1/dtable/app-upload-link/`);
+  }
+  candidateUploadMetaUrls.push(`${getServerBase()}/api/v2.1/dtable/app-upload-link/`);
+
+  let uploadMeta = null;
+  let uploadMetaError = null;
+  for (const uploadMetaUrl of candidateUploadMetaUrls) {
+    try {
+      uploadMeta = await seatableRequest(accessMeta.access_token, uploadMetaUrl, {
+        method: "GET",
+      });
+      if (uploadMeta) break;
+    } catch (error) {
+      uploadMetaError = error;
+    }
+  }
+  if (!uploadMeta) {
+    throw uploadMetaError || new Error("SeaTable upload metadata request failed");
+  }
   const uploadLink = uploadMeta?.upload_link || uploadMeta?.url;
   if (!uploadLink) {
     throw new Error("SeaTable upload link is missing");
