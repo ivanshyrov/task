@@ -129,7 +129,7 @@ module.exports = async (req, res) => {
           : fallbackNormalizeAttachments
       )(accessMeta, req.body?.attachments);
       const row = mapTaskToRow({ ...req.body, id: Number(id) });
-      if (Array.isArray(normalizedAttachments) && normalizedAttachments.length > 0) {
+      if (Array.isArray(normalizedAttachments)) {
         row.attachments = normalizedAttachments;
       }
       await seatableRequest(accessMeta.access_token, `${baseUrl}/rows/`, {

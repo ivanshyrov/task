@@ -156,7 +156,7 @@ module.exports = async (req, res) => {
           : fallbackNormalizeAttachments
       )(accessMeta, task.attachments);
       const row = mapTaskToRow(task);
-      if (Array.isArray(normalizedAttachments) && normalizedAttachments.length > 0) {
+      if (Array.isArray(normalizedAttachments)) {
         row.attachments = normalizedAttachments;
       }
       console.log("[tasks] prepared-row", {
@@ -227,7 +227,7 @@ module.exports = async (req, res) => {
           : fallbackNormalizeAttachments
       )(accessMeta, task.attachments);
       const row = mapTaskToRow(task);
-      if (Array.isArray(normalizedAttachments) && normalizedAttachments.length > 0) {
+      if (Array.isArray(normalizedAttachments)) {
         row.attachments = normalizedAttachments;
       }
       console.log("[tasks] updating", { rowId, taskId, row });

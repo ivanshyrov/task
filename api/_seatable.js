@@ -161,6 +161,10 @@ async function seatableRequest(accessToken, url, options = {}) {
     } catch (e) {
       clearTimeout(timeout);
       lastError = e;
+      const message = String(e?.message || e || "");
+      if (/SeaTable request failed:\s*4\d{2}\b/.test(message)) {
+        throw e;
+      }
       if (e?.name === "AbortError") {
         if (attempt < maxRetries - 1) {
           console.warn(`[seatable] Request timeout (${timeoutMs}ms), retrying attempt ${attempt + 1}...`);
@@ -311,9 +315,11 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
   const rawDataUrl = typeof source.dataUrl === "string" ? source.dataUrl : String(source.url || "");
   const parsed = parseDataUrl(rawDataUrl);
   if (!parsed) {
+    const url = String(source.url || "").trim();
+    const isHttp = /^https?:\/\//i.test(url);
     return {
       name: source.name || "attachment",
-      url: String(source.url || ""),
+      url: isHttp ? url : "",
       size: Number(source.size || 0) || 0,
       type: source.type || "",
     };
@@ -381,17 +387,20 @@ async function normalizeAttachmentsForSeaTable(accessMeta, attachments) {
     try {
       normalized.push(await uploadAttachmentToSeaTable(accessMeta, item));
     } catch (error) {
-      console.warn("[seatable] attachment upload failed; keep existing value", {
+      console.warn("[seatable] attachment upload failed; skip non-uploaded file", {
         message: error?.message || String(error),
       });
-      normalized.push({
-        name: String(item?.name || "attachment"),
-        url: String(item?.url || item?.dataUrl || ""),
-        size: Number(item?.size || 0) || 0,
-        type: String(item?.type || ""),
-        ...(item?.createdAt ? { createdAt: String(item.createdAt) } : {}),
-        ...(item?.author ? { author: String(item.author) } : {}),
-      });
+      const fallbackUrl = String(item?.url || "").trim();
+      if (/^https?:\/\//i.test(fallbackUrl)) {
+        normalized.push({
+          name: String(item?.name || "attachment"),
+          url: fallbackUrl,
+          size: Number(item?.size || 0) || 0,
+          type: String(item?.type || ""),
+          ...(item?.createdAt ? { createdAt: String(item.createdAt) } : {}),
+          ...(item?.author ? { author: String(item.author) } : {}),
+        });
+      }
     }
   }
   return normalized;

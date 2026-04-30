@@ -236,7 +236,7 @@ test("tasks api PUT sends SeaTable v2 updates payload", async () => {
             report: "",
             comments: "[]",
             history: "[]",
-            attachments: "[]",
+            attachments: [],
           },
         },
       ],
