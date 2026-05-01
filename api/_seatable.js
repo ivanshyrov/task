@@ -328,44 +328,51 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
   const dtableServerBase = String(accessMeta?.dtable_server || "").replace(/\/+$/, "");
   const candidateUploadMetaUrls = [];
   if (dtableServerBase) {
-    // Cloud often returns api-gateway server; app-upload-link can live there.
     candidateUploadMetaUrls.push(`${dtableServerBase}/api/v2.1/dtable/app-upload-link/`);
   }
   candidateUploadMetaUrls.push(`${getServerBase()}/api/v2.1/dtable/app-upload-link/`);
 
-  async function getUploadMetaWithApiToken(uploadMetaUrl) {
-    const apiToken = String(process.env.SEATABLE_API_TOKEN || "").trim();
-    if (!apiToken) throw new Error("SEATABLE_API_TOKEN is missing");
+  const apiToken = String(process.env.SEATABLE_API_TOKEN || "").trim();
+  if (!apiToken) {
+    throw new Error("SEATABLE_API_TOKEN is missing");
+  }
 
-    const response = await fetch(uploadMetaUrl, {
-      method: "GET",
-      headers: {
-        Authorization: `Token ${apiToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`SeaTable upload meta (api token) failed: ${response.status} ${body}`);
+  function tryParseJson(text) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
     }
-    return response.json();
   }
 
   let uploadMeta = null;
   let uploadMetaError = null;
   for (const uploadMetaUrl of candidateUploadMetaUrls) {
     try {
-      // Primary: app access token (works on many installations).
-      uploadMeta = await seatableRequest(accessMeta.access_token, uploadMetaUrl, { method: "GET" });
-      if (uploadMeta) break;
-    } catch (errorByAccessToken) {
-      try {
-        // Fallback: base API token (some SeaTable cloud configurations require this).
-        uploadMeta = await getUploadMetaWithApiToken(uploadMetaUrl);
-        if (uploadMeta) break;
-      } catch (errorByApiToken) {
-        uploadMetaError = errorByApiToken;
+      // SeaTable docs: upload-link endpoint is authenticated with API token.
+      const response = await fetch(uploadMetaUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Token ${apiToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const bodyText = await response.text();
+      if (!response.ok) {
+        throw new Error(`SeaTable upload meta failed: ${response.status} ${bodyText}`);
       }
+      const parsed = tryParseJson(bodyText);
+      if (parsed && typeof parsed === "object") {
+        uploadMeta = parsed;
+        break;
+      }
+      if (bodyText && /^https?:\/\//i.test(bodyText.trim())) {
+        uploadMeta = { upload_link: bodyText.trim() };
+        break;
+      }
+      throw new Error(`SeaTable upload meta invalid body: ${bodyText.slice(0, 200)}`);
+    } catch (error) {
+      uploadMetaError = error;
     }
   }
   if (!uploadMeta) {
@@ -393,10 +400,17 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
   if (uploadMeta?.parent_path) {
     formData.append("parent_dir", String(uploadMeta.parent_path));
   }
+  if (uploadMeta?.file_relative_path) {
+    formData.append("relative_path", String(uploadMeta.file_relative_path));
+  }
 
-  let uploadResponse = await fetch(uploadLink, { method: "POST", body: formData });
+  const uploadUrl = uploadLink.includes("?")
+    ? `${uploadLink}&ret-json=1`
+    : `${uploadLink}?ret-json=1`;
+
+  let uploadResponse = await fetch(uploadUrl, { method: "POST", body: formData });
   if (!uploadResponse.ok) {
-    uploadResponse = await fetch(uploadLink, {
+    uploadResponse = await fetch(uploadUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessMeta.access_token}` },
       body: formData,
@@ -407,8 +421,20 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
     throw new Error(`SeaTable attachment upload failed: ${uploadResponse.status} ${body}`);
   }
 
-  const uploaded = await uploadResponse.json();
+  const uploadBodyText = await uploadResponse.text();
+  const uploadedParsed = tryParseJson(uploadBodyText);
+  const uploaded =
+    Array.isArray(uploadedParsed) && uploadedParsed.length
+      ? uploadedParsed[0]
+      : (uploadedParsed && typeof uploadedParsed === "object" ? uploadedParsed : null);
+
   let url = uploaded?.url || uploaded?.download_link || uploaded?.file_url || "";
+  if (!url && uploadBodyText) {
+    const maybeUrl = uploadBodyText.trim();
+    if (maybeUrl && !maybeUrl.startsWith("{") && !maybeUrl.startsWith("[")) {
+      url = maybeUrl;
+    }
+  }
   if (url && !/^https?:\/\//i.test(url)) {
     if (!url.startsWith("/")) url = `/${url}`;
     url = `${getServerBase()}${url}`;
@@ -435,7 +461,7 @@ async function normalizeAttachmentsForSeaTable(accessMeta, attachments) {
         message: error?.message || String(error),
       });
       const fallbackUrl = String(item?.url || "").trim();
-      if (/^https?:\/\//i.test(fallbackUrl)) {
+      if (fallbackUrl && !fallbackUrl.startsWith("data:")) {
         normalized.push({
           name: String(item?.name || "attachment"),
           url: fallbackUrl,
