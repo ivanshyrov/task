@@ -333,16 +333,39 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
   }
   candidateUploadMetaUrls.push(`${getServerBase()}/api/v2.1/dtable/app-upload-link/`);
 
+  async function getUploadMetaWithApiToken(uploadMetaUrl) {
+    const apiToken = String(process.env.SEATABLE_API_TOKEN || "").trim();
+    if (!apiToken) throw new Error("SEATABLE_API_TOKEN is missing");
+
+    const response = await fetch(uploadMetaUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Token ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`SeaTable upload meta (api token) failed: ${response.status} ${body}`);
+    }
+    return response.json();
+  }
+
   let uploadMeta = null;
   let uploadMetaError = null;
   for (const uploadMetaUrl of candidateUploadMetaUrls) {
     try {
-      uploadMeta = await seatableRequest(accessMeta.access_token, uploadMetaUrl, {
-        method: "GET",
-      });
+      // Primary: app access token (works on many installations).
+      uploadMeta = await seatableRequest(accessMeta.access_token, uploadMetaUrl, { method: "GET" });
       if (uploadMeta) break;
-    } catch (error) {
-      uploadMetaError = error;
+    } catch (errorByAccessToken) {
+      try {
+        // Fallback: base API token (some SeaTable cloud configurations require this).
+        uploadMeta = await getUploadMetaWithApiToken(uploadMetaUrl);
+        if (uploadMeta) break;
+      } catch (errorByApiToken) {
+        uploadMetaError = errorByApiToken;
+      }
     }
   }
   if (!uploadMeta) {
