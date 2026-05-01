@@ -431,11 +431,27 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
   if (typeof url === "string") {
     url = url.trim();
   }
+  // Some SeaTable installations return file metadata without absolute/relative url.
+  // In that case construct canonical internal path from relative_path + filename.
+  if (!url) {
+    const rel = String(uploadMeta?.file_relative_path || "").replace(/^\/+|\/+$/g, "");
+    const uploadedName =
+      String(
+        uploaded?.name ||
+        uploaded?.filename ||
+        uploaded?.file_name ||
+        source?.name ||
+        fileName
+      ).trim();
+    if (rel && uploadedName) {
+      url = `/${rel}/${uploadedName}`;
+    }
+  }
   if (!url) {
     throw new Error("SeaTable upload returned empty file url");
   }
   const normalized = {
-    name: uploaded?.name || fileName,
+    name: uploaded?.name || uploaded?.filename || uploaded?.file_name || fileName,
     url,
     size: Number(uploaded?.size || buffer.length) || buffer.length,
     type: uploaded?.type || parsed.mimeType || source.type || "",
