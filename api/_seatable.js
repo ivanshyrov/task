@@ -413,16 +413,26 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
       ? uploadedParsed[0]
       : (uploadedParsed && typeof uploadedParsed === "object" ? uploadedParsed : null);
 
-  let url = uploaded?.url || uploaded?.download_link || uploaded?.file_url || "";
+  let url =
+    uploaded?.url ||
+    uploaded?.download_link ||
+    uploaded?.file_url ||
+    uploaded?.path ||
+    uploaded?.file_path ||
+    "";
   if (!url && uploadBodyText) {
     const maybeUrl = uploadBodyText.trim();
     if (maybeUrl && !maybeUrl.startsWith("{") && !maybeUrl.startsWith("[")) {
       url = maybeUrl;
     }
   }
-  if (url && !/^https?:\/\//i.test(url)) {
-    if (!url.startsWith("/")) url = `/${url}`;
-    url = `${getServerBase()}${url}`;
+  // For SeaTable file columns prefer internal path/url as returned by SeaTable.
+  // Converting to absolute cloud URL can make value non-canonical for file field.
+  if (typeof url === "string") {
+    url = url.trim();
+  }
+  if (!url) {
+    throw new Error("SeaTable upload returned empty file url");
   }
   const normalized = {
     name: uploaded?.name || fileName,
