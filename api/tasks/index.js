@@ -15,6 +15,9 @@ const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
 const VIEW_NAME = process.env.SEATABLE_VIEW_NAME || "Default";
 
 module.exports = async (req, res) => {
+  if (typeof res?.setHeader === "function") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  }
   const debug = {
     method: req.method,
     table: TABLE_NAME,

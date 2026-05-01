@@ -22,6 +22,7 @@ const CORS_HEADERS = {
 
 module.exports = async (req, res) => {
   if (typeof res.setHeader === "function") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     Object.entries(CORS_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
   }
 

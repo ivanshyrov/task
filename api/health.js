@@ -5,6 +5,9 @@ const {
 } = require("./_seatable");
 
 module.exports = async (req, res) => {
+  if (typeof res?.setHeader === "function") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  }
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
