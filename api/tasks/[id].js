@@ -129,6 +129,12 @@ module.exports = async (req, res) => {
           ? normalizeAttachmentsForSeaTable
           : fallbackNormalizeAttachments
       )(accessMeta, req.body?.attachments);
+      if (Array.isArray(req.body?.attachments) && req.body.attachments.length > 0 && normalizedAttachments.length === 0) {
+        return res.status(400).json({
+          error: "Не удалось загрузить вложение в SeaTable. Проверьте права API токена на upload.",
+          debug,
+        });
+      }
       const row = mapTaskToRow({ ...req.body, id: Number(id) });
       if (Array.isArray(normalizedAttachments)) {
         row.attachments = normalizedAttachments;

@@ -183,6 +183,9 @@ module.exports = async (req, res) => {
           ? normalizeAttachmentsForSeaTable
           : fallbackNormalizeAttachments
       )(accessMeta, task.attachments);
+      if (Array.isArray(task.attachments) && task.attachments.length > 0 && normalizedAttachments.length === 0) {
+        throw new Error("Не удалось загрузить вложение в SeaTable. Проверьте права API токена на upload.");
+      }
       const row = mapTaskToRow(task);
       if (Array.isArray(normalizedAttachments)) {
         row.attachments = normalizedAttachments;
@@ -266,6 +269,9 @@ module.exports = async (req, res) => {
           ? normalizeAttachmentsForSeaTable
           : fallbackNormalizeAttachments
       )(accessMeta, task.attachments);
+      if (Array.isArray(task.attachments) && task.attachments.length > 0 && normalizedAttachments.length === 0) {
+        throw new Error("Не удалось загрузить вложение в SeaTable. Проверьте права API токена на upload.");
+      }
       const row = mapTaskToRow(task);
       if (Array.isArray(normalizedAttachments)) {
         row.attachments = normalizedAttachments;

@@ -2545,7 +2545,8 @@
             const context = findTaskContext(taskId);
             if (!context || !canEditTask(context.task)) return;
             const reader = new FileReader();
-            reader.onload = () => {
+            reader.onload = async () => {
+                const snapshot = JSON.parse(JSON.stringify(context.task));
                 context.task.attachments.push({
                     name: file.name,
                     size: file.size,
@@ -2559,6 +2560,29 @@
                 renderTaskAttachments(context.task);
                 renderTaskHistory(context.task);
                 refreshTaskRelatedUi();
+                try {
+                    const rowId = context.task.row_id || taskRowMap.get(taskId);
+                    if (!rowId) throw new Error('Не найден row_id задачи');
+                    const payload = await apiRequest(`${API_BASE}/${taskId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ ...context.task, row_id: rowId, id: taskId }),
+                        timeoutMs: 20000
+                    });
+                    if (payload?.task) {
+                        Object.assign(context.task, payload.task);
+                        if (payload.task.row_id) taskRowMap.set(taskId, payload.task.row_id);
+                    }
+                    setSyncBanner('Вложение сохранено в SeaTable.');
+                    showToast('Вложение добавлено', 'success');
+                    renderTaskAttachments(context.task);
+                } catch (error) {
+                    Object.assign(context.task, snapshot);
+                    renderTaskAttachments(context.task);
+                    renderTaskHistory(context.task);
+                    refreshTaskRelatedUi();
+                    setSyncBanner(`Не удалось загрузить вложение: ${error.message}`, true);
+                    showToast('Ошибка загрузки вложения', 'error');
+                }
             };
             reader.readAsDataURL(file);
         });
@@ -2570,11 +2594,37 @@
             if (!context || !canEditTask(context.task)) return;
             const idx = parseInt(removeBtn.dataset.index);
             const removed = context.task.attachments[idx];
+            const snapshot = JSON.parse(JSON.stringify(context.task));
             context.task.attachments.splice(idx, 1);
             if (removed) addHistoryEntry(context.task, `Удалено вложение: ${removed.name}`);
             renderTaskAttachments(context.task);
             renderTaskHistory(context.task);
             refreshTaskRelatedUi();
+            void (async () => {
+                try {
+                    const rowId = context.task.row_id || taskRowMap.get(taskId);
+                    if (!rowId) throw new Error('Не найден row_id задачи');
+                    const payload = await apiRequest(`${API_BASE}/${taskId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ ...context.task, row_id: rowId, id: taskId }),
+                        timeoutMs: 20000
+                    });
+                    if (payload?.task) {
+                        Object.assign(context.task, payload.task);
+                        if (payload.task.row_id) taskRowMap.set(taskId, payload.task.row_id);
+                    }
+                    setSyncBanner('Вложение удалено из SeaTable.');
+                    showToast('Вложение удалено', 'success');
+                    renderTaskAttachments(context.task);
+                } catch (error) {
+                    Object.assign(context.task, snapshot);
+                    renderTaskAttachments(context.task);
+                    renderTaskHistory(context.task);
+                    refreshTaskRelatedUi();
+                    setSyncBanner(`Не удалось удалить вложение: ${error.message}`, true);
+                    showToast('Ошибка удаления вложения', 'error');
+                }
+            })();
         });
         document.getElementById('addDatabaseBtn')?.addEventListener('click', () => {
             const name = prompt('Название новой базы');

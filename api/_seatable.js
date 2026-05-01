@@ -325,12 +325,7 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
     };
   }
 
-  const dtableServerBase = String(accessMeta?.dtable_server || "").replace(/\/+$/, "");
-  const candidateUploadMetaUrls = [];
-  if (dtableServerBase) {
-    candidateUploadMetaUrls.push(`${dtableServerBase}/api/v2.1/dtable/app-upload-link/`);
-  }
-  candidateUploadMetaUrls.push(`${getServerBase()}/api/v2.1/dtable/app-upload-link/`);
+  const uploadMetaUrl = `${getServerBase()}/api/v2.1/dtable/app-upload-link/`;
 
   const apiToken = String(process.env.SEATABLE_API_TOKEN || "").trim();
   if (!apiToken) {
@@ -346,38 +341,28 @@ async function uploadAttachmentToSeaTable(accessMeta, attachment) {
   }
 
   let uploadMeta = null;
-  let uploadMetaError = null;
-  for (const uploadMetaUrl of candidateUploadMetaUrls) {
-    try {
-      // SeaTable docs: upload-link endpoint is authenticated with API token.
-      const response = await fetch(uploadMetaUrl, {
-        method: "GET",
-        headers: {
-          Authorization: `Token ${apiToken}`,
-          "Content-Type": "application/json",
-        },
-      });
-      const bodyText = await response.text();
-      if (!response.ok) {
-        throw new Error(`SeaTable upload meta failed: ${response.status} ${bodyText}`);
-      }
-      const parsed = tryParseJson(bodyText);
-      if (parsed && typeof parsed === "object") {
-        uploadMeta = parsed;
-        break;
-      }
-      if (bodyText && /^https?:\/\//i.test(bodyText.trim())) {
-        uploadMeta = { upload_link: bodyText.trim() };
-        break;
-      }
-      throw new Error(`SeaTable upload meta invalid body: ${bodyText.slice(0, 200)}`);
-    } catch (error) {
-      uploadMetaError = error;
+  try {
+    // SeaTable docs: upload-link endpoint is authenticated with API token.
+    const response = await fetch(uploadMetaUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Token ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    const bodyText = await response.text();
+    if (!response.ok) {
+      throw new Error(`SeaTable upload meta failed: ${response.status} ${bodyText}`);
     }
-  }
-  if (!uploadMeta) {
+    const parsed = tryParseJson(bodyText);
+    if (!parsed || typeof parsed !== "object") {
+      throw new Error(`SeaTable upload meta invalid body: ${bodyText.slice(0, 200)}`);
+    }
+    uploadMeta = parsed;
+  } catch (uploadMetaError) {
     throw uploadMetaError || new Error("SeaTable upload metadata request failed");
   }
+
   const uploadLink = uploadMeta?.upload_link || uploadMeta?.url;
   if (!uploadLink) {
     throw new Error("SeaTable upload link is missing");
