@@ -153,6 +153,18 @@
                         </thead>
                         <tbody id="tasksTableBody"></tbody>
                     </table>
+                    <div class="pagination" id="pagination" style="display:none;">
+                        <div class="pagination-info" id="paginationInfo"></div>
+                        <div class="pagination-pages" id="paginationPages"></div>
+                        <div class="pagination-size">
+                            <label>Показывать:</label>
+                            <select id="pageSizeSelect">
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 <div class="cards-container" id="tasksCardsContainer"></div>
                 <div class="tasks-footer-actions" style="text-align:right; margin-top:10px;">

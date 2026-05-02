@@ -404,6 +404,11 @@
     let activeQuickFilter = '';
     let healthPingTimer = null;
     const taskRowMap = new Map();
+
+    // Пагинация
+    let currentPage = 1;
+    let pageSize = 25;
+    const PAGE_SIZES = [25, 50, 100];
     const API_BASE = '/api/tasks';
     const API_USERS = '/api/users';
     const API_DIRECTIONS = '/api/directions';
@@ -491,6 +496,7 @@
     const taskAttachmentsList = document.getElementById('taskAttachmentsList');
     const taskAttachmentInput = document.getElementById('taskAttachmentInput');
     const addTaskAttachmentBtn = document.getElementById('addTaskAttachmentBtn');
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
     const DEFAULT_SETTINGS = {
         theme: 'light',
         compactMode: false,
@@ -715,6 +721,7 @@
 
     function resetTaskFiltersForSession() {
         activeQuickFilter = '';
+        currentPage = 1;
         quickFilterButtons.forEach(b => b.classList.remove('active'));
         if (filterDepartment) filterDepartment.value = '';
         if (filterPriority) filterPriority.value = '';
@@ -1200,13 +1207,33 @@
         return Math.ceil((dl - today) / (1000*60*60*24));
     }
 
+function getFilteredTasks() {
+        return filterTasks();
+    }
+
+    function getPaginatedTasks() {
+        const filtered = getFilteredTasks();
+        const totalPages = Math.ceil(filtered.length / pageSize);
+        if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+        const start = (currentPage - 1) * pageSize;
+        const end = start + pageSize;
+        return filtered.slice(start, end);
+    }
+
+    function getTotalPages() {
+        return Math.ceil(getFilteredTasks().length / pageSize);
+    }
+
     function renderTasks() {
-        const filtered = filterTasks();
+        const filtered = getFilteredTasks();
+        const totalPages = getTotalPages();
+        const paginatedTasks = getPaginatedTasks();
         const isMobile = window.innerWidth <= 768;
         
         // Рендер таблицы
         let html = '';
-        filtered.forEach(task => {
+        paginatedTasks.forEach(task => {
             const statusClass = getStatusClass(task.status);
             const dbName = databases.find(d => d.id === task.databaseId)?.name || '';
             const canDelete = canDeleteTask(task);
@@ -1242,7 +1269,7 @@
         
         if (cardsContainer) {
             let cardsHtml = '';
-            filtered.forEach(task => {
+            paginatedTasks.forEach(task => {
                 const statusClass = getStatusClass(task.status);
                 const daysLeft = getDaysUntil(task.deadline);
                 let daysDisplay = '';
@@ -1295,11 +1322,99 @@
             if (cardsContainer) cardsContainer.classList.remove('show-mobile');
         }
         
+        // Рендер пагинации
+        renderPagination(filtered.length, totalPages);
+        
         // Перевешиваем все обработчики
         attachRowButtons();
         attachCardButtons();
         setupDragAndDrop();
         attachTaskRowClicks();
+    }
+
+    function renderPagination(totalItems, totalPages) {
+        const pagination = document.getElementById('pagination');
+        const paginationInfo = document.getElementById('paginationInfo');
+        const paginationPages = document.getElementById('paginationPages');
+        
+        if (!pagination || !paginationInfo || !paginationPages) return;
+        
+        if (totalItems === 0) {
+            pagination.style.display = 'none';
+            return;
+        }
+        
+        pagination.style.display = 'flex';
+        
+        const start = (currentPage - 1) * pageSize + 1;
+        const end = Math.min(currentPage * pageSize, totalItems);
+        paginationInfo.textContent = `Показано ${start}-${end} из ${totalItems}`;
+        
+        let pagesHtml = '';
+        
+        pagesHtml += `<button class="pagination-btn" id="paginationPrev" ${currentPage <= 1 ? 'disabled' : ''} title="Предыдущая">
+            <i class="fas fa-chevron-left"></i>
+        </button>`;
+        
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+        
+        if (endPage - startPage + 1 < maxVisiblePages) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+        
+        if (startPage > 1) {
+            pagesHtml += `<button class="pagination-btn page-num" data-page="1">1</button>`;
+            if (startPage > 2) pagesHtml += `<span class="pagination-btn" style="border:none; cursor:default;">...</span>`;
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            pagesHtml += `<button class="pagination-btn page-num ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+        }
+        
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) pagesHtml += `<span class="pagination-btn" style="border:none; cursor:default;">...</span>`;
+            pagesHtml += `<button class="pagination-btn page-num" data-page="${totalPages}">${totalPages}</button>`;
+        }
+        
+        pagesHtml += `<button class="pagination-btn" id="paginationNext" ${currentPage >= totalPages ? 'disabled' : ''} title="Следующая">
+            <i class="fas fa-chevron-right"></i>
+        </button>`;
+        
+        paginationPages.innerHTML = pagesHtml;
+        
+        document.getElementById('paginationPrev')?.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderTasks();
+            }
+        });
+        
+        document.getElementById('paginationNext')?.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderTasks();
+            }
+        });
+        
+        paginationPages.querySelectorAll('.page-num').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const page = parseInt(btn.dataset.page);
+                if (page && page !== currentPage) {
+                    currentPage = page;
+                    renderTasks();
+                }
+            });
+        });
+    }
+
+    function goToPage(page) {
+        const totalPages = getTotalPages();
+        if (page >= 1 && page <= totalPages) {
+            currentPage = page;
+            renderTasks();
+        }
     }
 
     function attachCardButtons() {
@@ -1750,25 +1865,27 @@
 
     // ==================== ФИЛЬТРЫ И ЭКСПОРТ ====================
     [filterDepartment, filterPriority, filterStatus, filterDate, searchTask, sortTasks].forEach(el => {
-        el?.addEventListener('input', renderTasks);
-        el?.addEventListener('change', renderTasks);
+        el?.addEventListener('input', () => { currentPage = 1; renderTasks(); });
+        el?.addEventListener('change', () => { currentPage = 1; renderTasks(); });
     });
     filterDatabase?.addEventListener('change', e => {
         currentDatabaseId = e.target.value;
+        currentPage = 1;
         if (reportDatabase) reportDatabase.value = currentDatabaseId;
             renderTasks();
             populateDepartmentSelects();
         savePersistedData();
     });
-    resetFiltersBtn.addEventListener('click', () => {
+resetFiltersBtn.addEventListener('click', () => {
         filterDepartment.value = filterPriority.value = filterStatus.value = filterDate.value = searchTask.value = '';
         if (sortTasks) sortTasks.value = 'createdAt_desc';
+        currentPage = 1;
         activeQuickFilter = '';
         quickFilterButtons.forEach(b => b.classList.remove('active'));
         renderTasks();
     });
-    setTodayFilterBtn.addEventListener('click', () => {
-        filterDate.value = getTodayYmd(); renderTasks();
+setTodayFilterBtn.addEventListener('click', () => {
+        filterDate.value = getTodayYmd(); currentPage = 1; renderTasks();
     });
     setTodayDeadlineBtn?.addEventListener('click', () => {
         quickTaskDeadline.value = getTodayYmd();
@@ -2491,6 +2608,7 @@
             });
         });
         quickFilterButtons.forEach(btn => btn.addEventListener('click', () => {
+            currentPage = 1;
             activeQuickFilter = btn.dataset.quickFilter || '';
             quickFilterButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
