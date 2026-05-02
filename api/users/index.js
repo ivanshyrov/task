@@ -79,7 +79,8 @@ module.exports = async (req, res) => {
           email: row.email || "",
           phone: row.phone || "",
           office: row.office || "",
-          passwordHash: row.password_hash || ""
+          passwordHash: row.password_hash || "",
+          avatar: row.avatar || ""
         }));
       } else {
         const limit = 1000;
@@ -105,7 +106,8 @@ module.exports = async (req, res) => {
             email: source.email || "",
             phone: source.phone || "",
             office: source.office || "",
-            passwordHash: source.password_hash || ""
+            passwordHash: source.password_hash || "",
+            avatar: source.avatar || ""
           };
         });
       }
@@ -248,6 +250,7 @@ module.exports = async (req, res) => {
         email: user.email !== undefined ? user.email : existingUser.email,
         phone: user.phone !== undefined ? user.phone : existingUser.phone,
         office: user.office !== undefined ? user.office : existingUser.office,
+        avatar: user.avatar !== undefined ? user.avatar : existingUser.avatar || "",
         ...(user.passwordHash ? { password_hash: user.passwordHash } : {})
       };
 

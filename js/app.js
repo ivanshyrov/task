@@ -139,6 +139,7 @@
     async function syncUserToSeaTable(user, action, lookupUsername) {
         const targetUsername = lookupUsername || user.username;
         try {
+            console.log('[syncUserToSeaTable] action:', action, 'user:', targetUsername, 'hasAvatar:', !!user.avatar);
             if (action === 'create') {
                 await apiRequest(API_USERS, {
                     method: 'POST',
@@ -156,7 +157,7 @@
                 });
             }
         } catch (error) {
-            console.error('Не удалось синхронизировать пользователя с SeaTable:', error);
+            console.error('[syncUserToSeaTable] error:', error.message);
             // Не показываем ошибку пользователю - данные сохранены локально
         }
     }
@@ -2016,7 +2017,7 @@ setTodayFilterBtn.addEventListener('click', () => {
             const img = new Image();
             img.onload = function() {
                 const canvas = document.createElement('canvas');
-                const maxSize = 200;
+                const maxSize = 150;
                 let width = img.width, height = img.height;
                 if (width > height) {
                     if (width > maxSize) { height *= maxSize / width; width = maxSize; }
@@ -2027,12 +2028,17 @@ setTodayFilterBtn.addEventListener('click', () => {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                const compressedData = canvas.toDataURL('image/jpeg', 0.7);
+                const compressedData = canvas.toDataURL('image/jpeg', 0.5);
                 localStorage.setItem(`avatar_${username}`, compressedData);
                 const user = findUserByUsername(username);
                 if (user) {
                     user.avatar = compressedData;
-                    syncUserToSeaTable(user, 'update', username);
+                    console.log('[saveAvatar] synced to SeaTable for:', username);
+                    syncUserToSeaTable(user, 'update', username).then(() => {
+                        console.log('[saveAvatar] SUCCESS:', username);
+                    }).catch(err => {
+                        console.error('[saveAvatar] FAILED:', err);
+                    });
                 }
                 updateHeaderAvatar();
                 if (profileModal.classList.contains('show')) {
