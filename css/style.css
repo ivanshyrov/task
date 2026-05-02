@@ -27,6 +27,8 @@ body::before{
 
 .app { position:relative; z-index:1; }
 .app { display:flex; flex-direction:column; min-height:100vh; }
+
+.app-footer { padding:12px 24px; text-align:center; font-size:0.8rem; color:var(--text-muted); opacity:0.6; }
 .login-screen { position:relative; display:flex; align-items:center; justify-content:center; min-height:100vh; overflow:hidden; background:
     linear-gradient(135deg, rgba(9,58,126,0.88) 0%, rgba(13,84,172,0.85) 45%, rgba(11,73,149,0.84) 100%),
     url("../assets/theme-bg.png");
