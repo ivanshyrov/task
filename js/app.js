@@ -104,6 +104,9 @@
         const adminUser = findUserByUsername('admin');
         if (adminUser) {
             if (!adminUser.office) adminUser.office = '222';
+            if (!adminUser.avatar && localStorage.getItem('avatar_admin')) {
+                adminUser.avatar = localStorage.getItem('avatar_admin');
+            }
         }
         if (currentUser?.username === 'admin' && !currentUser.office) currentUser.office = '222';
     }
@@ -1081,9 +1084,13 @@
     }
 
     function updateHeaderAvatar() {
+        if (!currentUser) return;
+        const user = findUserByUsername(currentUser.username);
+        const avatarFromSeaTable = user?.avatar;
         const saved = localStorage.getItem(`avatar_${currentUser?.username}`);
-        if (saved) {
-            headerAvatar.src = saved;
+        const avatar = avatarFromSeaTable || saved;
+        if (avatar) {
+            headerAvatar.src = avatar;
             headerAvatar.style.display = 'block';
             headerAvatarIcon.style.display = 'none';
         } else {
@@ -2005,6 +2012,11 @@ setTodayFilterBtn.addEventListener('click', () => {
                 ctx.drawImage(img, 0, 0, width, height);
                 const compressedData = canvas.toDataURL('image/jpeg', 0.7);
                 localStorage.setItem(`avatar_${username}`, compressedData);
+                const user = findUserByUsername(username);
+                if (user) {
+                    user.avatar = compressedData;
+                    syncUserToSeaTable(user, 'update', username);
+                }
                 updateHeaderAvatar();
                 if (profileModal.classList.contains('show')) {
                     document.getElementById('profileAvatarImg').src = compressedData;
@@ -2559,30 +2571,6 @@ setTodayFilterBtn.addEventListener('click', () => {
         document.querySelectorAll('.close-modal, .close-modal-btn').forEach(b =>
             b.addEventListener('click', e => e.target.closest('.modal').classList.remove('show'))
         );
-        
-        // Drag and drop для файлов
-        const quickTaskDropZone = document.getElementById('quickTaskDropZone');
-        if (quickTaskDropZone && quickTaskAttachmentInput) {
-            quickTaskDropZone.addEventListener('click', () => quickTaskAttachmentInput.click());
-            quickTaskDropZone.addEventListener('dragover', e => { e.preventDefault(); quickTaskDropZone.classList.add('dragover'); });
-            quickTaskDropZone.addEventListener('dragleave', () => quickTaskDropZone.classList.remove('dragover'));
-            quickTaskDropZone.addEventListener('drop', e => {
-                e.preventDefault();
-                quickTaskDropZone.classList.remove('dragover');
-                if (e.dataTransfer.files.length) {
-                    quickTaskAttachmentInput.files = e.dataTransfer.files;
-                    quickTaskDropZone.classList.add('has-file');
-                    quickTaskDropZone.querySelector('p').innerHTML = '<i class="fas fa-check"></i> Файл выбран';
-                }
-            });
-            quickTaskAttachmentInput.addEventListener('change', () => {
-                if (quickTaskAttachmentInput.files.length) {
-                    quickTaskDropZone.classList.add('has-file');
-                    quickTaskDropZone.querySelector('p').innerHTML = '<i class="fas fa-check"></i> Файл выбран';
-                }
-            });
-        }
-        
         quickTaskForm.addEventListener('submit', async e => {
             e.preventDefault();
             e.stopImmediatePropagation();
