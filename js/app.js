@@ -91,6 +91,14 @@
             payload = await apiRequest(API_USERS);
             remoteUsers = Array.isArray(payload?.users) ? payload.users : [];
             users = remoteUsers;
+            
+            // Переносим аватарки из SeaTable в localStorage если их там нет
+            users.forEach(u => {
+                if (u.avatar) {
+                    localStorage.setItem(`avatar_${u.username}`, u.avatar);
+                }
+            });
+            
             console.log('[initUsers] loaded from SeaTable:', users.length, 'users');
         } catch (error) {
             // fallback на старый кэш — если пользователь уже логинился ранее
@@ -104,11 +112,20 @@
         const adminUser = findUserByUsername('admin');
         if (adminUser) {
             if (!adminUser.office) adminUser.office = '222';
-            if (!adminUser.avatar && localStorage.getItem('avatar_admin')) {
-                adminUser.avatar = localStorage.getItem('avatar_admin');
+            const localAvatar = localStorage.getItem('avatar_admin');
+            if (!adminUser.avatar && localAvatar) {
+                adminUser.avatar = localAvatar;
             }
         }
         if (currentUser?.username === 'admin' && !currentUser.office) currentUser.office = '222';
+        
+        // Загружаем аватарки всех пользователей из localStorage
+        users.forEach(u => {
+            if (!u.avatar) {
+                const localAvatar = localStorage.getItem(`avatar_${u.username}`);
+                if (localAvatar) u.avatar = localAvatar;
+            }
+        });
     }
 
     function saveUsers() {
