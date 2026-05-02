@@ -1863,7 +1863,7 @@ function getFilteredTasks() {
         });
     }
 
-    // ==================== ФИЛЬТРЫ И ЭКСПОРТ ====================
+// ==================== ФИЛЬТРЫ И ЭКСПОРТ ====================
     [filterDepartment, filterPriority, filterStatus, filterDate, searchTask, sortTasks].forEach(el => {
         el?.addEventListener('input', () => { currentPage = 1; renderTasks(); });
         el?.addEventListener('change', () => { currentPage = 1; renderTasks(); });
@@ -1872,11 +1872,11 @@ function getFilteredTasks() {
         currentDatabaseId = e.target.value;
         currentPage = 1;
         if (reportDatabase) reportDatabase.value = currentDatabaseId;
-            renderTasks();
-            populateDepartmentSelects();
+        renderTasks();
+        populateDepartmentSelects();
         savePersistedData();
     });
-resetFiltersBtn.addEventListener('click', () => {
+    resetFiltersBtn.addEventListener('click', () => {
         filterDepartment.value = filterPriority.value = filterStatus.value = filterDate.value = searchTask.value = '';
         if (sortTasks) sortTasks.value = 'createdAt_desc';
         currentPage = 1;
@@ -2559,6 +2559,30 @@ setTodayFilterBtn.addEventListener('click', () => {
         document.querySelectorAll('.close-modal, .close-modal-btn').forEach(b =>
             b.addEventListener('click', e => e.target.closest('.modal').classList.remove('show'))
         );
+        
+        // Drag and drop для файлов
+        const quickTaskDropZone = document.getElementById('quickTaskDropZone');
+        if (quickTaskDropZone && quickTaskAttachmentInput) {
+            quickTaskDropZone.addEventListener('click', () => quickTaskAttachmentInput.click());
+            quickTaskDropZone.addEventListener('dragover', e => { e.preventDefault(); quickTaskDropZone.classList.add('dragover'); });
+            quickTaskDropZone.addEventListener('dragleave', () => quickTaskDropZone.classList.remove('dragover'));
+            quickTaskDropZone.addEventListener('drop', e => {
+                e.preventDefault();
+                quickTaskDropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    quickTaskAttachmentInput.files = e.dataTransfer.files;
+                    quickTaskDropZone.classList.add('has-file');
+                    quickTaskDropZone.querySelector('p').innerHTML = '<i class="fas fa-check"></i> Файл выбран';
+                }
+            });
+            quickTaskAttachmentInput.addEventListener('change', () => {
+                if (quickTaskAttachmentInput.files.length) {
+                    quickTaskDropZone.classList.add('has-file');
+                    quickTaskDropZone.querySelector('p').innerHTML = '<i class="fas fa-check"></i> Файл выбран';
+                }
+            });
+        }
+        
         quickTaskForm.addEventListener('submit', async e => {
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -2617,7 +2641,6 @@ setTodayFilterBtn.addEventListener('click', () => {
         toggleDetailedStatsBtn.addEventListener('click', toggleDetailedStats);
         reportDatabase.addEventListener('change', e => {
             currentDatabaseId = e.target.value;
-            if (filterDatabase) filterDatabase.value = currentDatabaseId;
             updateStats();
             if (document.getElementById('detailedStats').style.display === 'block') renderDetailedStats();
             savePersistedData();
