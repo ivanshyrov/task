@@ -8,11 +8,40 @@ const {
 } = require("../_seatable");
 
 const TABLE_NAME = process.env.SEATABLE_DIRECTIONS_TABLE || "Directions";
+const MAX_REQUEST_SIZE = 100 * 1024;
+
+// Rate limiting
+const requestCounts = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const MAX_REQUESTS_PER_MINUTE = 30;
+
+function checkRateLimit(ip) {
+    const now = Date.now();
+    const requests = requestCounts.get(ip) || { count: 0, windowStart: now };
+    if (now - requests.windowStart > RATE_LIMIT_WINDOW) {
+        requests.count = 0;
+        requests.windowStart = now;
+    }
+    requests.count++;
+    requestCounts.set(ip, requests);
+    return requests.count <= MAX_REQUESTS_PER_MINUTE;
+}
 
 module.exports = async (req, res) => {
   if (typeof res?.setHeader === "function") {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   }
+  
+  const clientIP = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+  if (!checkRateLimit(clientIP)) {
+    return res.status(429).json({ error: "Too many requests" });
+  }
+  
+  const bodyStr = JSON.stringify(req.body || {});
+  if (bodyStr.length > MAX_REQUEST_SIZE) {
+    return res.status(400).json({ error: "Request too large" });
+  }
+  
   const debug = {
     method: req.method,
     table: TABLE_NAME,

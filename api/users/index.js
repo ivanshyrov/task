@@ -8,11 +8,65 @@ const {
 } = require("../_seatable");
 
 const TABLE_NAME = process.env.SEATABLE_USERS_TABLE || "Users";
+const MAX_REQUEST_SIZE = 100 * 1024;
+
+// Validation helpers
+function sanitizeString(str, maxLength = 255) {
+    if (typeof str !== 'string') return '';
+    return str.slice(0, maxLength).replace(/[<>'"&]/g, '');
+}
+
+function validateUsername(username) {
+    if (!username || typeof username !== 'string') return false;
+    return /^[a-zA-Z0-9_]{3,30}$/.test(username);
+}
+
+function validateEmail(email) {
+    if (!email) return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validateRole(role) {
+    return ['admin', 'director', 'employee'].includes(role);
+}
+
+// Rate limiting simple (по IP)
+const requestCounts = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 минута
+const MAX_REQUESTS_PER_MINUTE = 30;
+
+function checkRateLimit(ip) {
+    const now = Date.now();
+    const requests = requestCounts.get(ip) || { count: 0, windowStart: now };
+    
+    if (now - requests.windowStart > RATE_LIMIT_WINDOW) {
+        requests.count = 0;
+        requests.windowStart = now;
+    }
+    
+    requests.count++;
+    requestCounts.set(ip, requests);
+    
+    return requests.count <= MAX_REQUESTS_PER_MINUTE;
+}
 
 module.exports = async (req, res) => {
   if (typeof res?.setHeader === "function") {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   }
+  
+  // Rate limiting
+  const clientIP = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+  if (!checkRateLimit(clientIP)) {
+    return res.status(429).json({ error: "Too many requests. Try again later." });
+  }
+  
+  // Limit body size
+  const bodyStr = JSON.stringify(req.body || {});
+  if (bodyStr.length > MAX_REQUEST_SIZE) {
+    return res.status(400).json({ error: "Request too large" });
+  }
+  
   const debug = {
     method: req.method,
     table: TABLE_NAME,
@@ -108,18 +162,26 @@ module.exports = async (req, res) => {
             office: source.office || "",
             passwordHash: source.password_hash || "",
             avatar: source.avatar || ""
-          };
+};
         });
       }
       return res.status(200).json({ users });
     }
 
-    // POST - создать пользователя
+// POST - создать пользователя
     if (req.method === "POST") {
       const { user } = req.body;
       const username = String(user?.username || "").trim();
-      if (!username) {
-        return res.status(400).json({ error: "Требуется user.username" });
+      
+      // Input validation
+      if (!username || !validateUsername(username)) {
+        return res.status(400).json({ error: "Неверный логин (3-30 символов, a-z, 0-9, _)" });
+      }
+      if (user?.email && !validateEmail(user.email)) {
+        return res.status(400).json({ error: "Неверный email" });
+      }
+      if (user?.role && !validateRole(user.role)) {
+        return res.status(400).json({ error: "Неверная роль" });
       }
 
       // Защита от дублей на стороне API (SeaTable - источник истины).

@@ -46,9 +46,25 @@
     }
 
     function sanitizeHTML(str) {
+        if (!str) return '';
         const temp = document.createElement('div');
         temp.textContent = str;
         return temp.innerHTML;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function escapeAttr(str) {
+        if (!str) return '';
+        return String(str).replace(/["'&<>`]/g, '');
     }
 
     // ==================== УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ====================
@@ -431,6 +447,11 @@
     let pageSize = 25;
     const PAGE_SIZES = [25, 50, 100];
     const API_BASE = '/api/tasks';
+
+    // Rate limiting
+    const LOGIN_ATTEMPTS_KEY = 'loginAttempts';
+    const MAX_LOGIN_ATTEMPTS = 5;
+    const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 минут
     const API_USERS = '/api/users';
     const API_DIRECTIONS = '/api/directions';
     const API_HEALTH = '/api/health';
@@ -1006,8 +1027,40 @@
         void syncTasksFromApi();
     }
 
+    function checkLoginRateLimit() {
+        const attempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPTS_KEY) || '{"count":0,"lockedUntil":0}');
+        const now = Date.now();
+        if (attempts.lockedUntil && now < attempts.lockedUntil) {
+            const remaining = Math.ceil((attempts.lockedUntil - now) / 1000 / 60);
+            showToast(`Слишком много попыток. Подождите ${remaining} мин.`, 'error');
+            return false;
+        }
+        return true;
+    }
+
+    function recordFailedLogin() {
+        const attempts = JSON.parse(localStorage.getItem(LOGIN_ATTEMPTS_KEY) || '{"count":0,"lockedUntil":0}');
+        const now = Date.now();
+        if (attempts.lockedUntil && now > attempts.lockedUntil) {
+            attempts.count = 0;
+            attempts.lockedUntil = 0;
+        }
+        attempts.count++;
+        if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
+            attempts.lockedUntil = now + LOCKOUT_DURATION;
+            showToast(`Аккаунт заблокирован на ${LOCKOUT_DURATION/1000/60} минут`, 'error');
+        }
+        localStorage.setItem(LOGIN_ATTEMPTS_KEY, JSON.stringify(attempts));
+    }
+
+    function clearLoginAttempts() {
+        localStorage.setItem(LOGIN_ATTEMPTS_KEY, JSON.stringify({ count: 0, lockedUntil: 0 }));
+    }
+
     loginForm.addEventListener('submit', async e => {
         e.preventDefault();
+        
+        if (!checkLoginRateLimit()) return;
         
         // Ждём инициализации пользователей
         if (users.length === 0) {
@@ -1018,7 +1071,13 @@
         const password = document.getElementById('loginPassword').value;
         const passwordHash = await hashPassword(password);
         const user = users.find(u => u.username === username && u.passwordHash === passwordHash);
-        if (!user) { showToast('Неверный логин или пароль', 'error'); return; }
+        if (!user) {
+            recordFailedLogin();
+            showToast('Неверный логин или пароль', 'error');
+            return;
+        }
+        
+        clearLoginAttempts();
         currentUser = { ...user };
         localStorage.setItem(ACTIVE_SESSION_KEY, currentUser.username);
         applyRole(currentUser.role);
