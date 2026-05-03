@@ -8,12 +8,17 @@ const {
   normalizeAttachmentsForSeaTable,
   seatableRequest,
 } = require("../_seatable");
+const { validateToken } = require("../_auth");
 const fallbackNormalizeAttachments = async (_accessMeta, attachments) =>
   Array.isArray(attachments) ? attachments : [];
 
 const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
 const VIEW_NAME = process.env.SEATABLE_VIEW_NAME || "Default";
 const MAX_REQUEST_SIZE = 100 * 1024;
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Idempotency keys store (in-memory, resets on cold start)
+const idempotencyKeys = new Map();
 
 // Rate limiting
 const requestCounts = new Map();
@@ -32,6 +37,30 @@ function checkRateLimit(ip) {
     return requests.count <= MAX_REQUESTS_PER_MINUTE;
 }
 
+function getIdempotencyKey(key) {
+    if (!key || typeof key !== "string") return null;
+    const clean = key.trim().slice(0, 64);
+    if (!clean) return null;
+    return clean;
+}
+
+function checkIdempotency(key) {
+    if (!key) return { exists: false, result: null };
+    const existing = idempotencyKeys.get(key);
+    if (!existing) return { exists: false, result: null };
+    const now = Date.now();
+    if (now - existing.timestamp > IDEMPOTENCY_TTL_MS) {
+        idempotencyKeys.delete(key);
+        return { exists: false, result: null };
+    }
+    return { exists: true, result: existing.result };
+}
+
+function setIdempotency(key, result) {
+    if (!key) return;
+    idempotencyKeys.set(key, { result, timestamp: Date.now() });
+}
+
 module.exports = async (req, res) => {
   if (typeof res?.setHeader === "function") {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
@@ -45,6 +74,16 @@ module.exports = async (req, res) => {
   const bodyStr = JSON.stringify(req.body || {});
   if (bodyStr.length > MAX_REQUEST_SIZE) {
     return res.status(400).json({ error: "Request too large" });
+  }
+  
+  // Проверка авторизации (кроме GET)
+  if (req.method !== "GET") {
+    const auth = req.headers?.authorization || "";
+    const token = auth.replace(/^Bearer\s+/i, "").trim();
+    const user = validateToken(token);
+    if (!user) {
+      return res.status(401).json({ error: "Требуется авторизация" });
+    }
   }
   
   const debug = {
@@ -207,6 +246,14 @@ module.exports = async (req, res) => {
 
     if (req.method === "POST") {
       const task = req.body || {};
+      const idempotencyKey = getIdempotencyKey(task.idempotencyKey);
+      if (idempotencyKey) {
+        const check = checkIdempotency(idempotencyKey);
+        if (check.exists && check.result) {
+          console.log("[tasks] idempotency hit", { key: idempotencyKey });
+          return res.status(200).json(check.result);
+        }
+      }
       const normalizedAttachments = await (
         typeof normalizeAttachmentsForSeaTable === "function"
           ? normalizeAttachmentsForSeaTable
@@ -280,7 +327,11 @@ module.exports = async (req, res) => {
         console.error("[tasks] create failed", { message: msg });
         throw firstError;
       }
-      return res.status(201).json({ task: mapRowToTask(created) });
+      const responseData = { task: mapRowToTask(created) };
+      if (idempotencyKey) {
+        setIdempotency(idempotencyKey, responseData);
+      }
+      return res.status(201).json(responseData);
     }
 
     // PUT - обновить задачу

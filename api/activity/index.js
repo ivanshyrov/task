@@ -6,6 +6,7 @@ const {
   getRowsBaseUrl,
   seatableRequest,
 } = require("../_seatable");
+const { validateToken } = require("../_auth");
 
 const TABLE_NAME = process.env.SEATABLE_ACTIVITY_TABLE || "ActivityDirections";
 const MAX_REQUEST_SIZE = 100 * 1024;
@@ -40,6 +41,16 @@ module.exports = async (req, res) => {
   const bodyStr = JSON.stringify(req.body || {});
   if (bodyStr.length > MAX_REQUEST_SIZE) {
     return res.status(400).json({ error: "Request too large" });
+  }
+  
+  // Проверка авторизации для POST/PUT/DELETE
+  if (["POST", "PUT", "DELETE"].includes(req.method)) {
+    const auth = req.headers?.authorization || "";
+    const token = auth.replace(/^Bearer\s+/i, "").trim();
+    const user = validateToken(token);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Только администратор" });
+    }
   }
 
   try {

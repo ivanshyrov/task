@@ -8,25 +8,53 @@ const {
   normalizeAttachmentsForSeaTable,
   seatableRequest,
 } = require("../_seatable");
+const { validateToken } = require("../_auth");
 const fallbackNormalizeAttachments = async (_accessMeta, attachments) =>
   Array.isArray(attachments) ? attachments : [];
 
 const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
 const VIEW_NAME = process.env.SEATABLE_VIEW_NAME || "Default";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+// CORS: читаем из env, fallback на VERCEL_URL
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "").split(",").map(o => o.trim()).filter(Boolean);
+const FALLBACK_ORIGIN = process.env.VERCEL_URL || "vercel.app";
+
+function getCorsHeaders(origin) {
+  // Разрешаем если в списке или это preview деплой
+  const allowed = ALLOWED_ORIGINS.length > 0 
+    ? ALLOWED_ORIGINS.some(allowed => origin?.includes(allowed) || allowed === "*")
+    : origin?.includes(FALLBACK_ORIGIN) || origin?.endsWith(".vercel.app") || origin?.endsWith(".vercel.sh");
+  
+  const allowOrigin = allowed && origin ? origin : (ALLOWED_ORIGINS[0] || "*");
+  
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "86400",
+  };
+}
 
 module.exports = async (req, res) => {
   if (typeof res.setHeader === "function") {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-    Object.entries(CORS_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
+    const origin = req.headers?.origin || req.headers?.referer || "";
+    const corsHeaders = getCorsHeaders(origin);
+    Object.entries(corsHeaders).forEach(([key, value]) => res.setHeader(key, value));
   }
 
   const method = String(req.method || "").toUpperCase();
+  
+  // Проверка авторизации (кроме GET)
+  if (method !== "GET" && method !== "OPTIONS") {
+    const auth = req.headers?.authorization || "";
+    const token = auth.replace(/^Bearer\s+/i, "").trim();
+    const user = validateToken(token);
+    if (!user) {
+      return res.status(401).json({ error: "Требуется авторизация" });
+    }
+  }
+  
   const debug = {
     method,
     id: req.query?.id,
