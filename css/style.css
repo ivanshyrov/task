@@ -227,7 +227,7 @@ body::before{
 .modal form { padding:24px; }
 .form-group { margin-bottom:16px; }
 .form-group label { display:block; margin-bottom:6px; font-weight:500; }
-.form-group input, .form-group select, .form-group textarea { width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:12px; background:white; }
+.form-group input, .form-group select, .form-group textarea { width:100%; padding:14px 12px; border:1px solid var(--border); border-radius:12px; background:white; min-height:44px; }
 .form-row { display:flex; gap:16px; }
 .form-row .form-group { flex:1; }
 .modal-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:24px; }

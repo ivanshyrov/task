@@ -343,12 +343,24 @@ async function addUser(userData) {
     }
 
     async function editUser(username, userData) {
-        // Находим по username + exact fullName чтобы не менять всех с одинаковым логином
-        const user = users.find(u => u.username === username && u.fullName === userData.originalFullName);
+        // Если это текущий пользователь - используем currentUser напрямую
+        let user = null;
+        if (currentUser && currentUser.username === username) {
+            user = currentUser;
+        } else {
+            // Иначе ищем в массиве пользователей
+            if (users.length === 0) {
+                const stored = localStorage.getItem(USERS_STORAGE_KEY);
+                if (stored) {
+                    try { users = JSON.parse(stored); } catch {}
+                }
+            }
+            user = users.find(u => u.username === username);
+        }
         if (!user) return { success: false, error: 'Пользователь не найден' };
-        
+
         const previousUsername = user.username;
-        
+
         user.username = sanitizeHTML(userData.username);
         user.fullName = sanitizeHTML(userData.fullName);
         user.position = sanitizeHTML(userData.position || '');
@@ -357,6 +369,7 @@ async function addUser(userData) {
         user.email = sanitizeHTML(userData.email || '');
         user.phone = sanitizeHTML(userData.phone || '');
         user.office = sanitizeHTML(userData.office || '');
+        if (userData.avatar) user.avatar = userData.avatar;
         
         // Если пароль изменён
         if (userData.password && userData.password.trim()) {
@@ -2140,15 +2153,18 @@ setTodayFilterBtn.addEventListener('click', () => {
     profileFormEl?.addEventListener('submit', async e => {
         e.preventDefault();
         if (!currentUser) return;
+        const savedAvatar = localStorage.getItem(`avatar_${currentUser.username}`) || '';
         const result = await editUser(currentUser.username, {
             username: currentUser.username,
+            originalFullName: currentUser.fullName,
             password: '',
             fullName: document.getElementById('profileFullName').value.trim(),
             position: document.getElementById('profilePosition').value.trim(),
             email: document.getElementById('profileEmail').value.trim(),
             phone: document.getElementById('profilePhone').value.trim(),
             department: currentUser.department || '',
-            office: currentUser.office || ''
+            office: currentUser.office || '',
+            avatar: savedAvatar
         });
 
         if (!result.success) {
