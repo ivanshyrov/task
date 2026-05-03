@@ -319,11 +319,11 @@ users.push(newUser);
     }
 
     async function editUser(username, userData) {
-        const user = findUserByUsername(username);
+        // Находим по username + exact fullName чтобы не менять всех с одинаковым логином
+        const user = users.find(u => u.username === username && u.fullName === userData.originalFullName);
         if (!user) return { success: false, error: 'Пользователь не найден' };
         
         const previousUsername = user.username;
-        const previousFullName = user.fullName;
         
         user.username = sanitizeHTML(userData.username);
         user.fullName = sanitizeHTML(userData.fullName);
@@ -906,7 +906,15 @@ return '';  // OK
     }
 
     function getAssignableEmployees() {
-        return users.filter(u => u.role === 'admin').map(u => u.fullName).filter(Boolean).sort();
+        const allNames = [];
+        users.filter(u => u.role === 'admin').forEach(u => {
+            if (!u.fullName) return;
+            const names = u.fullName.split(',').map(n => n.trim()).filter(Boolean);
+            names.forEach(name => {
+                if (!allNames.includes(name)) allNames.push(name);
+            });
+        });
+        return allNames.sort();
     }
 
     function addHistoryEntry(task, action) {
@@ -2389,6 +2397,7 @@ setTodayFilterBtn.addEventListener('click', () => {
         const editUsernameInput = document.getElementById('editUsername');
         editUsernameInput.value = user.username;
         document.getElementById('editFullName').value = user.fullName;
+        editForm.dataset.originalFullname = user.fullName;
         document.getElementById('editPosition').value = user.position || '';
         const deptSelect = document.getElementById('editDepartment');
         const activityNames = activityData.map(a => a.name);
@@ -2780,6 +2789,7 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
         if (!currentUser || currentUser.role !== 'admin') return;
         
         const originalUsername = editUserForm.dataset.originalUsername;
+        const originalFullName = editUserForm.dataset.originalFullname;
         const formData = new FormData(editUserForm);
         const isMainAdmin = originalUsername === 'admin';
         const username = isMainAdmin ? 'admin' : (formData.get('username') || '').trim();
@@ -2796,7 +2806,7 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
             return;
         }
         
-        const result = await editUser(originalUsername, { username, password, fullName, department, position, email, phone, office });
+        const result = await editUser(originalUsername, { username, password, fullName, department, position, email, phone, office, originalFullName });
         if (result.success) {
             editUserModal.classList.remove('show');
             renderUsers();

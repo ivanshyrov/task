@@ -434,6 +434,7 @@
                 <div class="form-group">
                     <label>ФИО *</label>
                     <input type="text" name="fullName" required placeholder="Иванов Иван Иванович">
+                    <small style="color:var(--text-muted);">Для нескольких перечислите через запятую (только для Администратор)</small>
                 </div>
                 <div class="form-group">
                     <label>Должность</label>
@@ -478,7 +479,7 @@
     <div id="editUserModal" class="modal">
         <div class="modal-content">
             <div class="modal-header"><h3>Редактировать пользователя</h3><button class="close-modal">&times;</button></div>
-            <form id="editUserForm" data-original-username="">
+            <form id="editUserForm" data-original-username="" data-original-fullname="">
                 <div class="form-group">
                     <label>Логин *</label>
                     <input type="text" name="username" id="editUsername" required placeholder="Уникальный логин">
