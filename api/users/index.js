@@ -6,7 +6,6 @@ const {
   getRowsBaseUrl,
   seatableRequest,
 } = require("../_seatable");
-const { validateToken, require: requireAuth } = require("../_auth");
 
 const TABLE_NAME = process.env.SEATABLE_USERS_TABLE || "Users";
 const MAX_REQUEST_SIZE = 100 * 1024;
@@ -31,19 +30,6 @@ module.exports = async (req, res) => {
   const bodyStr = JSON.stringify(req.body || {});
   if (bodyStr.length > MAX_REQUEST_SIZE) {
     return res.status(400).json({ error: "Request too large" });
-  }
-
-  // Проверка авторизации
-  const auth = req.headers?.authorization || "";
-  const token = auth.replace(/^Bearer\s+/i, "").trim();
-  const user = validateToken(token);
-  if (!user) {
-    return res.status(401).json({ error: "Требуется авторизация" });
-  }
-  
-  // Проверка роли для POST/PUT/DELETE
-  if (user.role !== "admin" && ["POST", "PUT", "DELETE"].includes(req.method)) {
-    return res.status(403).json({ error: "Только администратор" });
   }
 
   async function fetchUserByRowId(rowId) {
@@ -133,7 +119,6 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: "Неверный email" });
       }
 
-      // Создаём без проверки на дубли
       const row = {
         username,
         full_name: user.fullName || "",

@@ -80,15 +80,27 @@
             let payload = await apiRequest(API_USERS);
             let remoteUsers = Array.isArray(payload?.users) ? payload.users : [];
 
-            // 2) Автосоздаём только главного admin (если разрешено и нет пользователей)
-            // ВНИМАНИЕ: автосоздание отключено для безопасности
-            if (ALLOW_AUTO_CREATE_ADMIN) {
-                const existing = new Set(remoteUsers.map(u => u.username));
-                for (const def of DEFAULT_USERS.filter(u => u.username === 'admin')) {
-                    if (existing.has(def.username)) continue;
-                    // Требуется установить пароль через админку вручную
-                    console.warn('[initUsers] Автосоздание admin отключено. Создайте пользователя вручную через админку.');
-                }
+            // 2) Автосоздаём только главного admin, чтобы не "оживлять" admin/employee.
+            const existing = new Set(remoteUsers.map(u => u.username));
+            for (const def of DEFAULT_USERS.filter(u => u.username === 'admin')) {
+                if (existing.has(def.username)) continue;
+                const passwordHash = await hashPassword(def.password);
+                await apiRequest(API_USERS, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user: {
+                            username: def.username,
+                            passwordHash,
+                            role: def.role,
+                            department: def.department,
+                            fullName: def.fullName,
+                            position: def.position,
+                            email: def.email,
+                            phone: def.phone,
+                            office: def.office || '',
+                        }
+                    })
+                });
             }
 
             // 3) Повторно загрузить, чтобы взялись актуальные passwordHash из SeaTable.
@@ -459,12 +471,10 @@ async function addUser(userData) {
     const LOGIN_ATTEMPTS_KEY = 'loginAttempts';
     const MAX_LOGIN_ATTEMPTS = 5;
     const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 минут
-    const API_AUTH = '/api/auth';
     const API_USERS = '/api/users';
     const API_DIRECTIONS = '/api/directions';
     const API_ACTIVITY = '/api/activity';
     const API_HEALTH = '/api/health';
-    const AUTH_TOKEN_KEY = 'authToken';
 
     const DEFAULT_ACTIVITY_DIRECTIONS = [
         'Управление делами',
@@ -479,13 +489,10 @@ async function addUser(userData) {
     ];
 
     // Стандартные пользователи (для первой инициализации)
-    // Пароли УДАЛЕНЫ из кода - нужно установить через админку или API
     const DEFAULT_USERS = [
-        { username: 'admin', role: 'admin', department: 'IT', fullName: 'Администратор Системы', position: 'Главный администратор', email: 'admin@it-sp.ru', phone: '+7 (999) 111-11-11', office: '222' }
+        { username: 'admin', password: 'admin123', role: 'admin', department: 'IT', fullName: 'Администратор Системы', position: 'Главный администратор', email: 'admin@it-sp.ru', phone: '+7 (999) 111-11-11', office: '222' },
+        { username: 'employee', password: 'employee123', role: 'employee', department: 'IT', fullName: 'Петров Алексей Иванович', position: 'Специалист', email: 'employee@it-sp.ru', phone: '+7 (999) 333-33-33', office: '229' }
     ];
-
-    // Флаг: разрешить автосоздание admin (отключено для безопасности)
-    const ALLOW_AUTO_CREATE_ADMIN = false;
 
     let users = [];
 
@@ -798,18 +805,8 @@ async function addUser(userData) {
             clearInterval(healthPingTimer);
             healthPingTimer = null;
         }
-        
-        const authToken = localStorage.getItem(AUTH_TOKEN_KEY);
-        if (authToken) {
-            apiRequest(API_AUTH, { 
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${authToken}` }
-            }).catch(() => {});
-        }
-        
         currentUser = null;
         localStorage.removeItem(ACTIVE_SESSION_KEY);
-        localStorage.removeItem(AUTH_TOKEN_KEY);
         app.style.display = 'none';
         loginScreen.style.display = 'flex';
         sidebar.classList.remove('open');
@@ -1055,19 +1052,10 @@ return '';  // OK
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
         const method = String(options.method || 'GET').toUpperCase();
-        
-        // Добавляем токен авторизации
-        const authToken = localStorage.getItem(AUTH_TOKEN_KEY);
-        const headers = { 
-            'Content-Type': 'application/json', 
-            ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-            ...(options.headers || {}) 
-        };
-        
         let response;
         try {
             response = await fetch(url, {
-                headers,
+                headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
                 signal: controller.signal,
                 ...(method === 'GET' ? { cache: 'no-store' } : {}),
                 ...options
@@ -1166,54 +1154,43 @@ return '';  // OK
         
         if (!checkLoginRateLimit()) return;
         
+        // Ждём инициализации пользователей
+        if (users.length === 0) {
+            await initUsers();
+        }
+        
         const username = document.getElementById('loginUsername').value.trim();
         const password = document.getElementById('loginPassword').value;
-        
-        if (!username || !password) {
-            showToast('Введите логин и пароль', 'error');
+        const passwordHash = await hashPassword(password);
+        const user = users.find(u => u.username === username && u.passwordHash === passwordHash);
+        if (!user) {
+            recordFailedLogin();
+            showToast('Неверный логин или пароль', 'error');
             return;
         }
         
-        try {
-            const response = await apiRequest(API_AUTH, {
-                method: 'POST',
-                body: JSON.stringify({ login: username, password })
-            });
-            
-            if (!response?.token) {
-                recordFailedLogin();
-                showToast('Неверный логин или пароль', 'error');
-                return;
-            }
-            
-            clearLoginAttempts();
-            currentUser = { 
-                username: response.user.username,
-                role: response.user.role,
-                fullName: response.user.fullName,
-                token: response.token
-            };
-            
-            localStorage.setItem(ACTIVE_SESSION_KEY, currentUser.username);
-            localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-            applyRole(currentUser.role);
-            loginScreen.style.display = 'none';
-            app.style.display = 'flex';
-            try {
-                await initApp();
-            } catch (error) {
-                console.error('[login] initApp failed', error);
-                showToast(`Ошибка инициализации: ${error?.message || String(error)}`, 'error');
-            }
-            if (currentUser.role === 'employee') {
-                switchView('tasks');
-                openQuickTaskBtn.click();
-            }
-            resetSessionTimer();
-        } catch (error) {
-            recordFailedLogin();
-            showToast('Ошибка входа: ' + (error?.message || String(error)), 'error');
+        clearLoginAttempts();
+        currentUser = { ...user };
+        // Для admin переопределяем ФИО и должность
+        if (currentUser.role === 'admin') {
+            currentUser.fullName = 'Администратор системы';
+            currentUser.position = 'Администратор';
         }
+        localStorage.setItem(ACTIVE_SESSION_KEY, currentUser.username);
+        applyRole(currentUser.role);
+        loginScreen.style.display = 'none';
+        app.style.display = 'flex';
+        try {
+            await initApp();
+        } catch (error) {
+            console.error('[login] initApp failed', error);
+            showToast(`Ошибка инициализации: ${error?.message || String(error)}`, 'error');
+        }
+        if (currentUser.role === 'employee') {
+            switchView('tasks');
+            openQuickTaskBtn.click();
+        }
+        resetSessionTimer();
     });
 
     function applyRole(role) {
