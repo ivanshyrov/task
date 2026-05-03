@@ -14,9 +14,6 @@
   "dependencies": {
     "@vercel/speed-insights": "^2.0.0"
   },
-  "engines": {
-    "node": ">=22 <25"
-  },
   "author": "IT-SP",
   "license": "MIT"
 }
