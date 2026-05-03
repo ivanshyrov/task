@@ -347,7 +347,7 @@ users.push(newUser);
             updateHeaderAvatar();
         }
 
-        await syncTasksForUserRename(previousFullName, user.fullName);
+        await syncTasksForUserRename(userData.originalFullName, user.fullName);
         void syncUserToSeaTable(user, 'update', previousUsername);
         return { success: true, user };
     }
@@ -2751,6 +2751,7 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
         const email = (formData.get('email') || '').trim();
         const phone = (formData.get('phone') || '').trim();
         const office = (formData.get('office') || '').trim();
+        const role = (formData.get('role') || 'employee').trim();
         
         if (!username || !password || !fullName) {
             showToast('Заполните обязательные поля (логин, пароль, ФИО)', 'error');
@@ -2761,7 +2762,7 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
             return;
         }
         
-        const result = await addUser({ username, password, fullName, department, position, email, phone, office });
+        const result = await addUser({ username, password, fullName, department, position, email, phone, office, role });
         if (result.success) {
             addUserModal.classList.remove('show');
             renderUsers();
