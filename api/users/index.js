@@ -170,6 +170,7 @@ module.exports = async (req, res) => {
         phone: user.phone || "",
         office: user.office || "",
         password_hash: user.passwordHash || "",
+        avatar: user.avatar || "",
       };
 
       await seatableRequest(meta.access_token, rowsCreateUrl, {
