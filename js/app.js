@@ -1872,9 +1872,9 @@ function getFilteredTasks() {
         task.updatedAt = new Date().toISOString().split('T')[0];
         if (prevStatus !== task.status) {
             addHistoryEntry(task, `Статус: ${prevStatus} -> ${task.status}`);
-            // Уведомление при завершении задачи
-            if (task.status === 'Завершена') {
-                addNotification(`Задача #${task.id} завершена: ${task.title}`);
+            // Уведомление при завершении задачи - только для автора
+            if (task.status === 'Завершена' && currentUser?.fullName === task.author) {
+                addNotification(`Ваша задача #${task.id} завершена: ${task.title}`);
             }
         }
         if (prevAssignee !== task.assignee) addHistoryEntry(task, `Исполнитель: ${prevAssignee || 'Не назначен'} -> ${task.assignee || 'Не назначен'}`);
