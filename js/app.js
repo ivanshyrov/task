@@ -80,7 +80,7 @@
             let payload = await apiRequest(API_USERS);
             let remoteUsers = Array.isArray(payload?.users) ? payload.users : [];
 
-            // 2) Автосоздаём только главного admin, чтобы не "оживлять" director/employee.
+            // 2) Автосоздаём только главного admin, чтобы не "оживлять" admin/employee.
             const existing = new Set(remoteUsers.map(u => u.username));
             for (const def of DEFAULT_USERS.filter(u => u.username === 'admin')) {
                 if (existing.has(def.username)) continue;
@@ -454,24 +454,34 @@
     const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 минут
     const API_USERS = '/api/users';
     const API_DIRECTIONS = '/api/directions';
+    const API_ACTIVITY = '/api/activity';
     const API_HEALTH = '/api/health';
+
+    const DEFAULT_ACTIVITY_DIRECTIONS = [
+        'Управление делами',
+        'Правовое обеспечение',
+        'Финансовый контроль',
+        'Информационные технологии',
+        'Кадры',
+        'Документооборот',
+        'Аналитическая работа',
+        'Международные связи',
+        'Пресс-служба'
+    ];
 
     // Стандартные пользователи (для первой инициализации)
     const DEFAULT_USERS = [
         { username: 'admin', password: 'admin123', role: 'admin', department: 'IT', fullName: 'Администратор Системы', position: 'Главный администратор', email: 'admin@it-sp.ru', phone: '+7 (999) 111-11-11', office: '222' },
-        { username: 'director', password: 'director123', role: 'director', department: 'IT', fullName: 'Иванов Сергей Петрович', position: 'Руководитель направления', email: 'director@it-sp.ru', phone: '+7 (999) 222-22-22', office: '201' },
         { username: 'employee', password: 'employee123', role: 'employee', department: 'IT', fullName: 'Петров Алексей Иванович', position: 'Специалист', email: 'employee@it-sp.ru', phone: '+7 (999) 333-33-33', office: '229' }
     ];
 
     let users = [];
 
-    let employeesData = [
-        { name: 'Шувалов Е.А.', position: 'Начальник IT', department: 'IT', phone: '2-22-76', email: 'shuvalov@it-sp.ru' },
-        { name: 'Козлова Д.С.', position: 'Маркетолог', department: 'Маркетинг', phone: '2-22-52', email: 'kozlova@it-sp.ru' }
-    ];
+    let employeesData = [];
     // Локальный справочник направлений (можно редактировать на вкладке "Направления")
     // Направления грузятся из SeaTable, чтобы они были одинаковыми на всех устройствах.
     let departmentsData = [];
+    let activityData = [];
 
     // ==================== DOM ====================
     const loginScreen = document.getElementById('loginScreen');
@@ -545,16 +555,14 @@
         desktopNotifications: true,
         defaultView: 'tasks'
     };
-    const TASK_STATUSES = ['Новая', 'Назначена', 'В работе', 'На проверке', 'Закрыта', 'Отклонена'];
+    const TASK_STATUSES = ['Новая', 'В работе', 'Завершена', 'Отклонена'];
     const PRIORITIES = ['Критический', 'Высокий', 'Средний', 'Низкий'];
     const STORAGE_KEY = 'taskPlannerDataV1';
     const SLA_DAYS_BY_PRIORITY = { 'Критический': 1, 'Высокий': 2, 'Средний': 3, 'Низкий': 5 };
     const STATUS_TRANSITIONS = {
-        'Новая': ['Назначена', 'Отклонена'],
-        'Назначена': ['В работе', 'Отклонена'],
-        'В работе': ['На проверке', 'Отклонена'],
-        'На проверке': ['Закрыта', 'В работе', 'Отклонена'],
-        'Закрыта': [],
+        'Новая': ['В работе', 'Отклонена'],
+        'В работе': ['Завершена', 'Отклонена'],
+        'Завершена': [],
         'Отклонена': []
     };
     let dataLoaded = false;
@@ -621,7 +629,7 @@
     }
 
     function canUseDatabaseScopes() {
-        return currentUser && (currentUser.role === 'admin' || currentUser.role === 'director');
+        return currentUser && currentUser.role === 'admin';
     }
 
     function getCurrentDatabase() {
@@ -686,12 +694,78 @@
             FULL_DEPARTMENTS = Array.from(new Set(departmentsData.map(d => d.name))).filter(Boolean);
         } catch (error) {
             console.error('[initDirections] failed', error);
-            // Чтобы сайт не "падал" при проблемах с API, используем локальный fallback.
-            // Но направления всё равно попробуем восстановить при повторном заходе.
             departmentsData = SUPPORT_DIRECTIONS.map(name => ({ name }));
             FULL_DEPARTMENTS = Array.from(new Set(departmentsData.map(d => d.name))).filter(Boolean);
             showToast(`Не удалось загрузить направления из SeaTable: ${error?.message || String(error)}`, 'error');
         }
+    }
+
+    async function fetchActivityFromApi() {
+        const payload = await apiRequest(API_ACTIVITY, { timeoutMs: 12000 });
+        const directions = Array.isArray(payload?.directions) ? payload.directions : [];
+        return directions.map(d => ({ name: String(d?.name || '').trim(), row_id: d?._id || d?.row_id })).filter(d => d.name);
+    }
+
+    async function seedActivityIfEmpty() {
+        const current = await fetchActivityFromApi();
+        if (current.length > 0) return current;
+        const existing = new Set(current.map(d => d.name));
+        for (const name of DEFAULT_ACTIVITY_DIRECTIONS) {
+            if (existing.has(name)) continue;
+            try {
+                await apiRequest(API_ACTIVITY, {
+                    method: "POST",
+                    body: JSON.stringify({ name }),
+                    timeoutMs: 12000,
+                });
+            } catch (e) {}
+        }
+        const refreshed = await fetchActivityFromApi();
+        return refreshed.length ? refreshed : DEFAULT_ACTIVITY_DIRECTIONS.map(name => ({ name }));
+    }
+
+    async function initActivity() {
+        try {
+            const fromApi = await fetchActivityFromApi();
+            const loaded = fromApi.length ? fromApi : await seedActivityIfEmpty();
+            activityData = loaded;
+        } catch (error) {
+            console.error('[initActivity] failed', error);
+            activityData = DEFAULT_ACTIVITY_DIRECTIONS.map(name => ({ name }));
+        }
+    }
+
+    function renderActivity() {
+        const tbody = document.getElementById('activityTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = activityData.map(d => `
+            <tr>
+                <td>${escapeHtml(d.name)}</td>
+                <td>
+                    <button class="icon-btn edit-activity-btn" data-row-id="${d.row_id}" title="Редактировать"><i class="fas fa-pen"></i></button>
+                    <button class="icon-btn delete-activity-btn" data-row-id="${d.row_id}" data-name="${escapeHtml(d.name)}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="2">Нет направлений</td></tr>';
+        
+        document.querySelectorAll('.edit-activity-btn').forEach(btn => btn.addEventListener('click', function() {
+            openEditActivityModal(this.dataset.rowId);
+        }));
+        
+        document.querySelectorAll('.delete-activity-btn').forEach(btn => btn.addEventListener('click', function() {
+            const rowId = this.dataset.rowId;
+            const name = this.dataset.name;
+            showConfirmModal('Удалить направление?', `Направление "${name}" будет удалено.`, async () => {
+                try {
+                    await apiRequest(API_ACTIVITY, { method: 'DELETE', body: JSON.stringify({ name }), timeoutMs: 12000 });
+                    await initActivity();
+                    renderActivity();
+                    showToast('Направление удалено', 'success');
+                } catch (error) {
+                    showToast('Ошибка удаления', 'error');
+                }
+            });
+        }));
     }
 
     function refreshTaskRelatedUi() {
@@ -774,9 +848,8 @@
     }
 
     function normalizeTask(task) {
-        if (task.status === 'Завершена') task.status = 'Закрыта';
+        // task.status = 'Завершена' убрано - теперь используется 'Завершена'
         if (!TASK_STATUSES.includes(task.status)) task.status = 'Новая';
-        task.type = typeof task.type === 'string' ? task.type : '';
         task.title = task.title || task.description || `Заявка #${task.id}`;
         task.assignee = task.assignee || '';
         if (!PRIORITIES.includes(task.priority)) task.priority = 'Средний';
@@ -833,10 +906,18 @@
         if (!PRIORITIES.includes(task.priority)) return 'Некорректный приоритет';
         if (!TASK_STATUSES.includes(task.status)) return 'Некорректный статус';
         if (!task.department) return 'Направление техподдержки обязательно';
-        if (task.status === 'Назначена' && !task.assignee) return 'Для статуса "Назначена" нужно выбрать исполнителя';
-        if (task.status === 'На проверке' && !task.report?.trim()) return 'Для статуса "На проверке" нужен отчёт';
-        if (task.status === 'Отклонена' && !task.rejectedReason?.trim()) return 'Для статуса "Отклонена" нужна причина';
-        return '';
+        if (task.status === 'Отклонена' && !task.rejectedReason?.trim()) return 'Укажите причину отклонения';
+        return true;
+    }
+
+function canTransitionStatus(task, nextStatus) {
+        if (task.status === nextStatus) return true;
+        const allowed = STATUS_TRANSITIONS[task.status];
+        if (!allowed) return false;
+        if (currentUser.role === 'employee') {
+            return nextStatus === 'В работе' || nextStatus === 'Завершена';
+        }
+return allowed.includes(nextStatus);
     }
 
     function addHistoryEntry(task, action) {
@@ -850,22 +931,18 @@
     function canViewTask(task) {
         if (!currentUser) return false;
         if (currentUser.role === 'admin') return true;
-        if (currentUser.role === 'director') {
-            return task.department === currentUser.department || task.author === currentUser.fullName;
-        }
         return task.author === currentUser.fullName;
     }
 
     function canAssignTask(task) {
         if (!currentUser) return false;
-        return (currentUser.role === 'admin' || currentUser.role === 'director') && canViewTask(task);
+        return currentUser.role === 'admin' && canViewTask(task);
     }
 
     function canEditTask(task) {
         if (!currentUser) return false;
         if (!canViewTask(task)) return false;
-        if (currentUser.role === 'admin') return task.status !== 'Закрыта';
-        if (currentUser.role === 'director') return task.status !== 'Закрыта';
+        if (currentUser.role === 'admin') return task.status !== 'Завершена';
         return task.author === currentUser.fullName && task.status === 'Новая';
     }
 
@@ -873,14 +950,13 @@
         if (!currentUser) return false;
         if (!canViewTask(task)) return false;
         if (currentUser.role === 'admin') return true;
-        if (currentUser.role === 'director') return task.status !== 'Закрыта';
         return task.author === currentUser.fullName && task.status === 'Новая';
     }
 
     function getEditDeniedReason(task) {
         if (!currentUser) return 'Нужно войти в систему';
         if (!canViewTask(task)) return 'Нет доступа к заявке';
-        if (task.status === 'Закрыта') return 'Закрытые заявки нельзя редактировать';
+        if (task.status === 'Завершена') return 'Закрытые заявки нельзя редактировать';
         if (currentUser.role === 'employee' && task.author !== currentUser.fullName) return 'Сотрудник редактирует только свои заявки';
         if (currentUser.role === 'employee' && task.status !== 'Новая') return 'Сотрудник редактирует только новые заявки';
         return 'Недостаточно прав';
@@ -889,7 +965,7 @@
     function getDeleteDeniedReason(task) {
         if (!currentUser) return 'Нужно войти в систему';
         if (!canViewTask(task)) return 'Нет доступа к заявке';
-        if (currentUser.role === 'director' && task.status === 'Закрыта') return 'Руководитель не удаляет закрытые заявки';
+        if (currentUser.role === 'admin' && task.status === 'Завершена') return 'Руководитель не удаляет закрытые заявки';
         if (currentUser.role === 'employee' && task.author !== currentUser.fullName) return 'Можно удалять только свои заявки';
         if (currentUser.role === 'employee' && task.status !== 'Новая') return 'Можно удалять только новые заявки';
         return 'Недостаточно прав';
@@ -901,7 +977,7 @@
         if (!STATUS_TRANSITIONS[task.status]?.includes(nextStatus)) return false;
         if (!currentUser) return false;
         if (currentUser.role === 'admin') return true;
-        if (currentUser.role === 'director') return canViewTask(task);
+        if (currentUser.role === 'admin') return canViewTask(task);
         if (currentUser.role === 'employee') {
             if (task.author !== currentUser.fullName) return false;
             if (task.assignee && task.assignee !== currentUser.fullName) return false;
@@ -911,8 +987,8 @@
     }
 
     function getAssignableEmployees() {
-        // Исполнителем может быть любой актуальный пользователь системы независимо от роли.
-        return [...new Set(users.map(u => u.fullName).filter(Boolean))].sort();
+        // Исполнитель может быть только администратор
+        return users.filter(u => u.role === 'admin').map(u => u.fullName).filter(Boolean).sort();
     }
 
     function findTaskContext(taskId) {
@@ -1097,12 +1173,12 @@
     });
 
     function applyRole(role) {
-        const roleNames = { admin: 'Администратор', director: 'Руководитель', employee: 'Сотрудник' };
+        const roleNames = { admin: 'Администратор', employee: 'Сотрудник СП' };
         roleName.textContent = roleNames[role];
         document.querySelectorAll('[data-role]').forEach(el => {
             el.style.display = el.dataset.role.split(',').includes(role) ? '' : 'none';
         });
-        openQuickTaskBtn.style.display = (role === 'employee' || role === 'admin' || role === 'director') ? 'flex' : 'none';
+        openQuickTaskBtn.style.display = (role === 'employee' || role === 'admin' || role === 'admin') ? 'flex' : 'none';
         openQuickTaskBtn.textContent = 'Новая задача';
         const isEmployee = role === 'employee';
         exportTasksBtn.style.display = isEmployee ? 'none' : 'inline-flex';
@@ -1112,9 +1188,9 @@
         sortTasks.style.display = isEmployee ? 'none' : '';
         resetFiltersBtn.style.display = isEmployee ? 'none' : 'inline-flex';
         if (quickFiltersRow) quickFiltersRow.style.display = isEmployee ? 'none' : 'flex';
-        if (filterDatabase) filterDatabase.style.display = (role === 'admin' || role === 'director') ? 'block' : 'none';
-        if (reportDatabase) reportDatabase.style.display = (role === 'admin' || role === 'director') ? 'block' : 'none';
-        const canBulkDelete = role === 'admin' || role === 'director';
+        if (filterDatabase) filterDatabase.style.display = (role === 'admin' || role === 'admin') ? 'block' : 'none';
+        if (reportDatabase) reportDatabase.style.display = (role === 'admin' || role === 'admin') ? 'block' : 'none';
+        const canBulkDelete = role === 'admin' || role === 'admin';
         deleteSelectedBtn.style.display = canBulkDelete ? 'inline-flex' : 'none';
         selectAllTasks.style.display = canBulkDelete ? 'inline-block' : 'none';
         // Показываем раздел "Пользователи" только для admin
@@ -1127,6 +1203,7 @@
         purgeLocalPlannerData();
         resetTaskFiltersForSession();
         await initDirections();
+        await initActivity();
         let maxId = 0;
         databases.forEach(db => db.tasks.forEach(t => {
             normalizeTask(t);
@@ -1139,6 +1216,7 @@
         populateDepartmentSelects();
         renderTasks();
         renderDepartments();
+        renderActivity();
         renderBasesList();
         renderUsers();
         updateStats();
@@ -1251,13 +1329,11 @@
             tasks = tasks.filter(t => t.status === 'Новая');
         } else if (activeQuickFilter === 'inwork') {
             tasks = tasks.filter(t => t.status === 'В работе');
-        } else if (activeQuickFilter === 'review') {
-            tasks = tasks.filter(t => t.status === 'На проверке');
         } else if (activeQuickFilter === 'overdue') {
             const today = getTodayYmd();
             tasks = tasks.filter(t => {
                 const deadline = toLocalDateYmd(t.deadline);
-                return deadline && deadline < today && t.status !== 'Закрыта';
+                return deadline && deadline < today && t.status !== 'Завершена';
             });
         }
         const priorityWeight = { 'Критический': 4, 'Высокий': 3, 'Средний': 2, 'Низкий': 1 };
@@ -1563,10 +1639,8 @@ function getFilteredTasks() {
     function getStatusClass(s) {
         switch(s) {
             case 'Новая': return 'status-new';
-            case 'Назначена': return 'status-assigned';
             case 'В работе': return 'status-progress';
-            case 'На проверке': return 'status-review';
-            case 'Закрыта': return 'status-done';
+            case 'Завершена': return 'status-done';
             case 'Отклонена': return 'status-rejected';
             default: return '';
         }
@@ -1733,11 +1807,12 @@ function getFilteredTasks() {
         const f = taskDetailForm;
         const nextStatus = f.status.value;
         if (!canTransitionStatus(task, nextStatus)) {
-            showToast('Недопустимый переход статуса для вашей роли', 'error');
+            showToast('Недопустимый переход статуса', 'error');
             return false;
         }
-        if (nextStatus === 'На проверке' && !f.report.value.trim()) {
-            showToast('Для перевода на проверку заполните отчёт', 'warning');
+        // Статусы "Назначена" и "На проверке" больше не используются
+        if (nextStatus === 'Отклонена' && !f.rejectedReason.value.trim()) {
+            showToast('Укажите причину отклонения', 'warning');
             return false;
         }
         const prevStatus = task.status;
@@ -1757,10 +1832,6 @@ function getFilteredTasks() {
             draft.report = task.report || '';
             draft.rejectedReason = task.rejectedReason || '';
         }
-        if (draft.report.trim()) {
-            draft.status = 'Закрыта';
-            f.status.value = 'Закрыта';
-        }
         if (currentUser.role !== 'employee') {
             draft.rejectedReason = f.rejectedReason.value.trim();
         }
@@ -1768,10 +1839,8 @@ function getFilteredTasks() {
         if (!draft.deadline) draft.deadline = getDateWithOffset(draft.slaDays);
         if (prevStatus !== draft.status) {
             const now = new Date().toISOString();
-            if (draft.status === 'Назначена') draft.assignedAt = now;
             if (draft.status === 'В работе') draft.inProgressAt = now;
-            if (draft.status === 'На проверке') draft.reviewAt = now;
-            if (draft.status === 'Закрыта') draft.closedAt = now;
+            if (draft.status === 'Завершена') draft.closedAt = now;
             if (draft.status === 'Отклонена') draft.rejectedAt = now;
         }
         const validationError = validateTaskShape(draft);
@@ -1782,7 +1851,13 @@ function getFilteredTasks() {
         const snapshot = JSON.parse(JSON.stringify(task));
         Object.assign(task, draft);
         task.updatedAt = new Date().toISOString().split('T')[0];
-        if (prevStatus !== task.status) addHistoryEntry(task, `Статус: ${prevStatus} -> ${task.status}`);
+        if (prevStatus !== task.status) {
+            addHistoryEntry(task, `Статус: ${prevStatus} -> ${task.status}`);
+            // Уведомление при завершении задачи
+            if (task.status === 'Завершена') {
+                addNotification(`Задача #${task.id} завершена: ${task.title}`);
+            }
+        }
         if (prevAssignee !== task.assignee) addHistoryEntry(task, `Исполнитель: ${prevAssignee || 'Не назначен'} -> ${task.assignee || 'Не назначен'}`);
         refreshTaskRelatedUi();
         try {
@@ -1989,7 +2064,7 @@ setTodayFilterBtn.addEventListener('click', () => {
     let dragSrcId = null;
     function setupDragAndDrop() {
         document.querySelectorAll('.task-row').forEach(row => {
-            if (!(currentUser && (currentUser.role === 'admin' || currentUser.role === 'director'))) return;
+            if (!(currentUser && (currentUser.role === 'admin' || currentUser.role === 'admin'))) return;
             row.addEventListener('dragstart', e => { dragSrcId = parseInt(row.dataset.index); });
             row.addEventListener('dragover', e => e.preventDefault());
             row.addEventListener('drop', e => {
@@ -2196,6 +2271,77 @@ setTodayFilterBtn.addEventListener('click', () => {
         modal.classList.add('show');
     }
 
+    // ==================== НАПРАВЛЕНИЯ ДЕЯТЕЛЬНОСТИ ====================
+    const addActivityModal = document.getElementById('addActivityModal');
+    const addActivityForm = document.getElementById('addActivityForm');
+    
+    document.getElementById('addActivityBtn')?.addEventListener('click', () => {
+        if (!currentUser || currentUser.role !== 'admin') return;
+        addActivityForm?.reset();
+        addActivityModal?.classList.add('show');
+    });
+    
+    addActivityForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!currentUser || currentUser.role !== 'admin') return;
+        
+        const formData = new FormData(addActivityForm);
+        const name = (formData.get('name') || '').trim();
+        
+        if (!name) { showToast('Введите название', 'error'); return; }
+        if (activityData.some(d => d.name.toLowerCase() === name.toLowerCase())) {
+            showToast('Такое направление уже существует', 'error'); return;
+        }
+        
+        try {
+            await apiRequest(API_ACTIVITY, { method: 'POST', body: JSON.stringify({ name }), timeoutMs: 12000 });
+            await initActivity();
+            renderActivity();
+            addActivityModal.classList.remove('show');
+            showToast(`Направление "${name}" добавлено`, 'success');
+        } catch (error) {
+            showToast('Ошибка добавления', 'error');
+        }
+    });
+    
+    document.getElementById('editActivityForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!currentUser || currentUser.role !== 'admin') return;
+        
+        const formData = new FormData(e.target);
+        const name = (formData.get('name') || '').trim();
+        const rowId = e.target.dataset.rowId;
+        if (!name || !rowId) return;
+        
+        const current = activityData.find(d => d.row_id === rowId);
+        const oldName = current?.name;
+        
+        if (!oldName || oldName === name) {
+            document.getElementById('editActivityModal')?.classList.remove('show');
+            return;
+        }
+        
+        try {
+            await apiRequest(API_ACTIVITY, { method: 'PUT', body: JSON.stringify({ oldName, name }), timeoutMs: 12000 });
+            await initActivity();
+            renderActivity();
+            document.getElementById('editActivityModal')?.classList.remove('show');
+            showToast('Направление обновлено', 'success');
+        } catch (error) {
+            showToast('Ошибка обновления', 'error');
+        }
+    });
+    
+    function openEditActivityModal(rowId) {
+        const activity = activityData.find(d => d.row_id === rowId);
+        if (!activity) return;
+        const form = document.getElementById('editActivityForm');
+        if (!form) return;
+        form.dataset.rowId = String(rowId);
+        document.getElementById('editActivityName').value = activity.name || '';
+        document.getElementById('editActivityModal')?.classList.add('show');
+    }
+
     // ==================== ПОЛЬЗОВАТЕЛИ ====================
     function renderUsers() {
         const tbody = document.getElementById('usersTableBody');
@@ -2300,16 +2446,33 @@ setTodayFilterBtn.addEventListener('click', () => {
     }
 
     function updateStats() {
-        const tasks = getCurrentDatabaseTasks();
+        let tasks = getCurrentDatabaseTasks();
+        const isAdmin = currentUser?.role === 'admin';
+        const dateFrom = document.getElementById('reportDateFrom')?.value;
+        const dateTo = document.getElementById('reportDateTo')?.value;
+        
+        if (!isAdmin) {
+            tasks = tasks.filter(t => t.author === currentUser?.fullName);
+        }
+        
+        if (dateFrom || dateTo) {
+            tasks = tasks.filter(t => {
+                const created = (t.createdAt || '').slice(0, 10);
+                if (dateFrom && created < dateFrom) return false;
+                if (dateTo && created > dateTo) return false;
+                return true;
+            });
+        }
+        
         document.getElementById('statTotalTasks').textContent = tasks.length;
         document.getElementById('statInProgress').textContent = tasks.filter(t => t.status === 'В работе').length;
-        document.getElementById('statCompleted').textContent = tasks.filter(t => t.status === 'Закрыта').length;
+        document.getElementById('statCompleted').textContent = tasks.filter(t => t.status === 'Завершена').length;
         if (statNewTasks) statNewTasks.textContent = tasks.filter(t => t.status === 'Новая').length;
         const today = getTodayYmd();
         const overdueEl = document.getElementById('statOverdue');
         if (overdueEl) overdueEl.textContent = tasks.filter(t => {
             const deadline = toLocalDateYmd(t.deadline);
-            return deadline && deadline < today && t.status !== 'Закрыта';
+            return deadline && deadline < today && t.status !== 'Завершена';
         }).length;
         const inSlaEl = document.getElementById('statInSla');
         const outSlaEl = document.getElementById('statOutSla');
@@ -2317,7 +2480,7 @@ setTodayFilterBtn.addEventListener('click', () => {
         let outSla = 0;
         tasks.forEach(t => {
             if (!t.deadline) return;
-            if (t.status === 'Закрыта') {
+            if (t.status === 'Завершена') {
                 const closeDate = (t.closedAt || t.updatedAt || t.createdAt || '').slice(0, 10);
                 if (closeDate && closeDate <= t.deadline) inSla++;
                 else outSla++;
@@ -2344,7 +2507,7 @@ setTodayFilterBtn.addEventListener('click', () => {
         renderBarList('statsAssignees', Object.fromEntries(sorted));
         const statusCounts = {};
         tasks.forEach(t => { statusCounts[t.status] = (statusCounts[t.status]||0)+1; });
-        renderBarList('statsStatuses', statusCounts, { 'Новая':'var(--primary-light)', 'Назначена':'#22c55e', 'В работе':'var(--warning)', 'На проверке':'#9b59b6', 'Закрыта':'var(--success)', 'Отклонена':'var(--danger)' });
+        renderBarList('statsStatuses', statusCounts, { 'Новая':'var(--primary-light)', 'В работе':'var(--warning)', 'Завершена':'var(--success)', 'Отклонена':'var(--danger)' });
         const dailyContainer = document.getElementById('statsDaily');
         if (!dailyContainer) return;
         const dates = [];
@@ -2388,6 +2551,14 @@ setTodayFilterBtn.addEventListener('click', () => {
         const simple = document.getElementById('simpleStats');
         const detailed = document.getElementById('detailedStats');
         const btn = toggleDetailedStatsBtn;
+        const isAdmin = currentUser?.role === 'admin';
+        
+        if (!isAdmin) {
+            simple.style.display = 'grid';
+            detailed.style.display = 'none';
+            return;
+        }
+        
         if (detailed.style.display === 'none') {
             simple.style.display = 'none';
             detailed.style.display = 'block';
@@ -2425,6 +2596,8 @@ setTodayFilterBtn.addEventListener('click', () => {
         if (viewId === 'reports') {
             updateStats();
             if (reportDatabase) reportDatabase.value = currentDatabaseId;
+        } else if (viewId === 'activity') {
+            renderActivity();
         } else if (viewId === 'bases') {
             renderBasesList();
         } else if (viewId === 'settings') {
@@ -2666,7 +2839,7 @@ setTodayFilterBtn.addEventListener('click', () => {
         });
         taskDetailForm.report?.addEventListener('input', () => {
             if (!taskDetailForm.report.value.trim()) return;
-            taskDetailForm.status.value = 'Закрыта';
+            taskDetailForm.status.value = 'Завершена';
         });
         logoutBtn.addEventListener('click', () => {
             logoutUser();
@@ -2709,6 +2882,9 @@ setTodayFilterBtn.addEventListener('click', () => {
             renderTasks();
         }));
         toggleDetailedStatsBtn.addEventListener('click', toggleDetailedStats);
+        document.getElementById('reportApplyBtn')?.addEventListener('click', () => {
+            updateStats();
+        });
         reportDatabase.addEventListener('change', e => {
             currentDatabaseId = e.target.value;
             updateStats();

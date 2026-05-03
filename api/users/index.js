@@ -27,7 +27,7 @@ function validateEmail(email) {
 }
 
 function validateRole(role) {
-    return ['admin', 'director', 'employee'].includes(role);
+    return ['admin', 'employee'].includes(role);
 }
 
 // Rate limiting simple (по IP)
