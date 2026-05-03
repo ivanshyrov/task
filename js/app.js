@@ -298,13 +298,37 @@
         }
     }
 
-    async function addUser(userData) {
-        // Убрана проверка уникальности логина - можно добавить несколько человек с разными данными под один логин
+async function addUser(userData) {
         const passwordHash = await hashPassword(userData.password);
+        const role = userData.role || 'employee';
+        
+        // Если admin и несколько ФИО через запятую - создаём отдельных пользователей
+        if (role === 'admin' && userData.fullName.includes(',')) {
+            const names = userData.fullName.split(',').map(n => n.trim()).filter(Boolean);
+            for (const name of names) {
+                const newUser = {
+                    username: sanitizeHTML(userData.username),
+                    passwordHash,
+                    role: 'admin',
+                    department: sanitizeHTML(userData.department || ''),
+                    fullName: name,
+                    position: sanitizeHTML(userData.position || ''),
+                    email: sanitizeHTML(userData.email || ''),
+                    phone: sanitizeHTML(userData.phone || ''),
+                    office: sanitizeHTML(userData.office || '')
+                };
+                users.push(newUser);
+                void syncUserToSeaTable(newUser, 'create');
+            }
+            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+            return { success: true };
+        }
+        
+        // Обычный случай - один пользователь
         const newUser = {
             username: sanitizeHTML(userData.username),
             passwordHash,
-            role: userData.role || 'employee',
+            role: role,
             department: sanitizeHTML(userData.department || ''),
             fullName: sanitizeHTML(userData.fullName),
             position: sanitizeHTML(userData.position || ''),
@@ -312,7 +336,7 @@
             phone: sanitizeHTML(userData.phone || ''),
             office: sanitizeHTML(userData.office || '')
         };
-users.push(newUser);
+        users.push(newUser);
         void syncUserToSeaTable(newUser, 'create');
         localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
         return { success: true, user: newUser };
@@ -329,7 +353,7 @@ users.push(newUser);
         user.fullName = sanitizeHTML(userData.fullName);
         user.position = sanitizeHTML(userData.position || '');
         user.department = sanitizeHTML(userData.department || '');
-        user.role = userData.role || 'employee';
+        user.role = userData.role || user.role || 'employee';
         user.email = sanitizeHTML(userData.email || '');
         user.phone = sanitizeHTML(userData.phone || '');
         user.office = sanitizeHTML(userData.office || '');
@@ -2802,12 +2826,14 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
         const phone = (formData.get('phone') || '').trim();
         const office = (formData.get('office') || '').trim();
         
+        const role = (formData.get('role') || 'employee').trim();
+        
         if (!username || !fullName) {
             showToast('Заполните обязательные поля (логин, ФИО)', 'error');
             return;
         }
         
-        const result = await editUser(originalUsername, { username, password, fullName, department, position, email, phone, office, originalFullName });
+        const result = await editUser(originalUsername, { username, password, fullName, department, position, email, phone, office, role, originalFullName });
         if (result.success) {
             editUserModal.classList.remove('show');
             renderUsers();
