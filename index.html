@@ -349,6 +349,12 @@
             <div class="modal-header"><h3>Новая заявка</h3><button class="close-modal">&times;</button></div>
             <form id="quickTaskForm">
                 <input type="hidden" name="database">
+                <div class="form-group" id="authorSelectGroup" style="display:none;">
+                    <label>Автор заявки *</label>
+                    <select name="author" id="quickTaskAuthor" required>
+                        <option value="">Выберите автора</option>
+                    </select>
+                </div>
                 <div class="form-group">
                     <label>Направление техподдержки *</label>
                     <input name="department" list="supportDirectionsList" required placeholder="Выберите или начните вводить направление">

@@ -1938,6 +1938,9 @@ function getFilteredTasks() {
             }
         }
 
+        const isAdmin = currentUser?.role === 'admin';
+        const selectedAuthor = isAdmin ? (formData.get('author') || '').trim() : currentUser.fullName;
+        
         const newTask = {
             createdAt: new Date().toISOString().split('T')[0],
             updatedAt: new Date().toISOString().split('T')[0],
@@ -1946,7 +1949,7 @@ function getFilteredTasks() {
             title: buildDefaultTaskTitle({ department: dept, description }),
             department: dept,
             description: description,
-            author: currentUser.fullName,
+            author: selectedAuthor || currentUser.fullName,
             assignee: '',
             office: userProfile.office || '—',
             phone: userProfile.phone || '—',
@@ -2855,6 +2858,20 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
         }));
         openQuickTaskBtn.addEventListener('click', () => {
             const userProfile = findUserByUsername(currentUser.username) || currentUser;
+            const isAdmin = currentUser?.role === 'admin';
+            const authorGroup = document.getElementById('authorSelectGroup');
+            const authorSelect = document.getElementById('quickTaskAuthor');
+            
+            if (isAdmin) {
+                // Показать выбор автора для админа - только админы
+                const adminUsers = users.filter(u => u.role === 'admin').map(u => u.fullName).filter(Boolean).sort();
+                authorSelect.innerHTML = '<option value="">Выберите автора</option>' + 
+                    adminUsers.map(name => `<option value="${name}">${name}</option>`).join('');
+                authorGroup.style.display = 'block';
+            } else {
+                authorGroup.style.display = 'none';
+            }
+            
             quickTaskForm.querySelector('input[name="database"]').value = currentDatabaseId;
             quickTaskForm.querySelector('input[name="department"]').value = '';
             quickTaskForm.querySelector('textarea[name="description"]').value = '';
