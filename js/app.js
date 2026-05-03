@@ -1190,7 +1190,7 @@ return allowed.includes(nextStatus);
         resetFiltersBtn.style.display = isEmployee ? 'none' : 'inline-flex';
         if (quickFiltersRow) quickFiltersRow.style.display = isEmployee ? 'none' : 'flex';
         if (filterDatabase) filterDatabase.style.display = role === 'admin' ? 'block' : 'none';
-        if (reportDatabase) reportDatabase.style.display = role === 'admin' ? 'block' : 'none';
+        if (reportDatabase) reportDatabase.style.display = 'block';
         const canBulkDelete = role === 'admin';
         deleteSelectedBtn.style.display = canBulkDelete ? 'inline-flex' : 'none';
         selectAllTasks.style.display = canBulkDelete ? 'inline-block' : 'none';
@@ -1410,7 +1410,7 @@ function getFilteredTasks() {
 
             html += `<tr data-index="${task.id}" draggable="true" class="task-row" data-taskid="${task.id}">
                 <td><input type="checkbox" class="task-checkbox" data-id="${task.id}" ${canDelete ? '' : 'disabled'}></td>
-                <td>${task.id}</td><td>${formatDate(task.createdAt)}</td><td>${dbName}</td><td>${task.type ? task.type : '—'}</td><td>${task.title || '—'}</td><td>${task.department}</td>
+                <td>${task.id}</td><td>${formatDate(task.createdAt)}</td><td>${dbName}</td><td>${task.title || '—'}</td><td>${task.department}</td>
                 <td>${task.author}</td><td>${task.assignee || '—'}</td><td>${task.office}</td><td>${task.phone}</td>
                 <td class="priority-${task.priority.toLowerCase()}">${task.priority}</td>
                 <td><span class="status-badge ${statusClass}">${task.status}</span></td>
@@ -2559,13 +2559,6 @@ setTodayFilterBtn.addEventListener('click', () => {
         const simple = document.getElementById('simpleStats');
         const detailed = document.getElementById('detailedStats');
         const btn = toggleDetailedStatsBtn;
-        const isAdmin = currentUser?.role === 'admin';
-        
-        if (!isAdmin) {
-            simple.style.display = 'grid';
-            detailed.style.display = 'none';
-            return;
-        }
         
         if (detailed.style.display === 'none') {
             simple.style.display = 'none';
@@ -2605,11 +2598,16 @@ setTodayFilterBtn.addEventListener('click', () => {
             updateStats();
             if (reportDatabase) reportDatabase.value = currentDatabaseId;
             const execSelect = document.getElementById('reportExecutor');
+            const toggleBtn = document.getElementById('toggleDetailedStatsBtn');
+            const isAdmin = currentUser?.role === 'admin';
             if (execSelect) {
                 const admins = getAssignableEmployees();
                 execSelect.innerHTML = '<option value="">Все исполнители</option>' + 
                     admins.map(name => `<option value="${name}">${name}</option>`).join('');
-                execSelect.style.display = currentUser?.role === 'admin' ? 'block' : 'none';
+                execSelect.style.display = isAdmin ? 'block' : 'none';
+            }
+            if (toggleBtn) {
+                toggleBtn.style.display = 'inline-flex';
             }
         } else if (viewId === 'activity') {
             renderActivity();

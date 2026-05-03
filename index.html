@@ -218,15 +218,15 @@
             <div id="view-reports" class="view">
                 <div class="reports-toolbar">
                     <h2>Отчёты</h2>
-                    <div style="display:flex; gap:10px; align-items:center;">
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <select id="reportDatabase" class="filter-select"></select>
-                        <select id="reportExecutor" class="filter-select" data-role="admin" style="display:none;">
+                        <select id="reportExecutor" class="filter-select">
                             <option value="">Все исполнители</option>
                         </select>
                         <input type="date" id="reportDateFrom" class="filter-date" placeholder="С">
                         <input type="date" id="reportDateTo" class="filter-date" placeholder="По">
                         <button class="btn btn-outline" id="reportApplyBtn">Применить</button>
-                        <button class="btn btn-outline" id="toggleDetailedStatsBtn"><i class="fas fa-chart-pie"></i> Детальная статистика</button>
+                        <button class="btn btn-outline" id="toggleDetailedStatsBtn" data-role="admin"><i class="fas fa-chart-pie"></i> Детальная статистика</button>
                     </div>
                 </div>
                 <div id="simpleStats" class="stats-grid">
