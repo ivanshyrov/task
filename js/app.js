@@ -951,7 +951,7 @@ return allowed.includes(nextStatus);
         if (!currentUser) return false;
         if (!canViewTask(task)) return false;
         if (currentUser.role === 'admin') return true;
-        return task.author === currentUser.fullName && task.status === 'Новая';
+        return false;  // Сотрудник не может удалять задачи
     }
 
     function getEditDeniedReason(task) {
@@ -1189,9 +1189,9 @@ return allowed.includes(nextStatus);
         sortTasks.style.display = isEmployee ? 'none' : '';
         resetFiltersBtn.style.display = isEmployee ? 'none' : 'inline-flex';
         if (quickFiltersRow) quickFiltersRow.style.display = isEmployee ? 'none' : 'flex';
-        if (filterDatabase) filterDatabase.style.display = (role === 'admin' || role === 'admin') ? 'block' : 'none';
-        if (reportDatabase) reportDatabase.style.display = (role === 'admin' || role === 'admin') ? 'block' : 'none';
-        const canBulkDelete = role === 'admin' || role === 'admin';
+        if (filterDatabase) filterDatabase.style.display = role === 'admin' ? 'block' : 'none';
+        if (reportDatabase) reportDatabase.style.display = role === 'admin' ? 'block' : 'none';
+        const canBulkDelete = role === 'admin';
         deleteSelectedBtn.style.display = canBulkDelete ? 'inline-flex' : 'none';
         selectAllTasks.style.display = canBulkDelete ? 'inline-block' : 'none';
         // Показываем раздел "Пользователи" только для admin
