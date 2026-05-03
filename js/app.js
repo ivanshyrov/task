@@ -299,9 +299,7 @@
     }
 
     async function addUser(userData) {
-        if (findUserByUsername(userData.username)) {
-            return { success: false, error: 'Пользователь с таким логином уже существует' };
-        }
+        // Убрана проверка уникальности логина - можно добавить несколько человек с разными данными под один логин
         const passwordHash = await hashPassword(userData.password);
         const newUser = {
             username: sanitizeHTML(userData.username),
@@ -323,13 +321,6 @@
     async function editUser(username, userData) {
         const user = findUserByUsername(username);
         if (!user) return { success: false, error: 'Пользователь не найден' };
-        const previousUsername = user.username;
-        const previousFullName = user.fullName;
-        
-        // Проверка уникальности нового логина
-        if (userData.username !== username && findUserByUsername(userData.username)) {
-            return { success: false, error: 'Пользователь с таким логином уже существует' };
-        }
         
         user.username = sanitizeHTML(userData.username);
         user.fullName = sanitizeHTML(userData.fullName);
@@ -1156,6 +1147,11 @@ return allowed.includes(nextStatus);
         
         clearLoginAttempts();
         currentUser = { ...user };
+        // Для admin переопределяем ФИО и должность
+        if (currentUser.role === 'admin') {
+            currentUser.fullName = 'Администратор системы';
+            currentUser.position = 'Администратор';
+        }
         localStorage.setItem(ACTIVE_SESSION_KEY, currentUser.username);
         applyRole(currentUser.role);
         loginScreen.style.display = 'none';
@@ -2502,11 +2498,13 @@ setTodayFilterBtn.addEventListener('click', () => {
         if (outSlaEl) outSlaEl.textContent = outSla;
     }
         
-    function renderDetailedStats() {
-        const tasks = getCurrentDatabaseTasks();
+function renderDetailedStats() {
+        let tasks = getCurrentDatabaseTasks();
+        const isAdmin = currentUser?.role === 'admin';
+        if (!isAdmin) {
+            tasks = tasks.filter(t => t.author === currentUser?.fullName);
+        }
         const deptCounts = {};
-
-
         tasks.forEach(t => { deptCounts[t.department] = (deptCounts[t.department]||0)+1; });
         renderBarList('statsDepartments', deptCounts);
         const authorCounts = {};
@@ -2896,6 +2894,13 @@ setTodayFilterBtn.addEventListener('click', () => {
         }));
         toggleDetailedStatsBtn.addEventListener('click', toggleDetailedStats);
         document.getElementById('reportApplyBtn')?.addEventListener('click', () => {
+            updateStats();
+        });
+        document.getElementById('reportResetBtn')?.addEventListener('click', () => {
+            document.getElementById('reportExecutor').value = '';
+            document.getElementById('reportDateFrom').value = '';
+            document.getElementById('reportDateTo').value = '';
+            if (reportDatabase) reportDatabase.value = currentDatabaseId;
             updateStats();
         });
         document.getElementById('reportExecutor')?.addEventListener('change', () => {
