@@ -3,7 +3,6 @@ const { getAppAccessToken, getRowsBaseUrl, seatableRequest } = require("./_seata
 
 const SESSION_COOKIE_NAME = "tp_session";
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const sessionStore = new Map();
 
 function sha256(value) {
   return crypto.createHash("sha256").update(String(value || "")).digest("hex");
@@ -68,35 +67,22 @@ function clearSessionCookie(res) {
 }
 
 function createSession(user) {
-  const sessionId = crypto.randomBytes(24).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessionStore.set(sessionId, { user, expiresAt });
-  const token = signSessionToken({ sessionId, exp: expiresAt });
-  return { token, sessionId, expiresAt };
+  const token = signSessionToken({ user, exp: expiresAt });
+  return { token, expiresAt };
 }
 
 function getSession(req) {
   const cookies = parseCookies(req);
   const token = cookies[SESSION_COOKIE_NAME];
   const payload = verifySessionToken(token);
-  if (!payload?.sessionId || !payload?.exp) return null;
-  if (Date.now() > Number(payload.exp)) {
-    sessionStore.delete(payload.sessionId);
-    return null;
-  }
-  const session = sessionStore.get(payload.sessionId);
-  if (!session) return null;
-  if (Date.now() > session.expiresAt) {
-    sessionStore.delete(payload.sessionId);
-    return null;
-  }
-  return { ...session, sessionId: payload.sessionId };
+  if (!payload?.user || !payload?.exp) return null;
+  if (Date.now() > Number(payload.exp)) return null;
+  return { user: payload.user, expiresAt: payload.exp };
 }
 
 function destroySession(req) {
-  const cookies = parseCookies(req);
-  const payload = verifySessionToken(cookies[SESSION_COOKIE_NAME]);
-  if (payload?.sessionId) sessionStore.delete(payload.sessionId);
+  return req;
 }
 
 async function findUserByUsername(username) {
