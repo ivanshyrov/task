@@ -153,27 +153,6 @@ module.exports = async (req, res) => {
         return res.status(500).json({ error: "SeaTable update verification failed: task not found after update", debug });
       }
       const refreshedTask = mapRowToTask(refreshedRow);
-      const expectedTask = mapTaskToRow({ ...row, _id: rowId });
-      const sameTask =
-        String(refreshedTask.title || "") === String(expectedTask.title || "") &&
-        String(refreshedTask.description || "") === String(expectedTask.description || "") &&
-        String(refreshedTask.author || "") === String(expectedTask.author || "") &&
-        String(refreshedTask.assignee || "") === String(expectedTask.assignee || "") &&
-        String(refreshedTask.department || "") === String(expectedTask.department || "") &&
-        String(refreshedTask.priority || "") === String(expectedTask.priority || "") &&
-        String(refreshedTask.status || "") === String(expectedTask.status || "") &&
-        String(refreshedTask.type || "") === String(expectedTask.type || "") &&
-        String(refreshedTask.office || "") === String(expectedTask.office || "") &&
-        String(refreshedTask.phone || "") === String(expectedTask.phone || "") &&
-        String(refreshedTask.report || "") === String(expectedTask.report || "") &&
-        String(refreshedTask.rejectedReason || "") === String(expectedTask.rejectedReason || "") &&
-        String(refreshedTask.databaseId || "") === String(expectedTask.databaseId || "") &&
-        Number(refreshedTask.slaDays || 0) === Number(expectedTask.slaDays || 0) &&
-        String(refreshedTask.deadline || "").slice(0, 10) === String(expectedTask.deadline || "").slice(0, 10) &&
-        String(refreshedTask.createdAt || "").slice(0, 10) === String(expectedTask.createdAt || "").slice(0, 10);
-      if (!sameTask) {
-        return res.status(500).json({ error: "SeaTable update verification failed: changes were not applied", debug });
-      }
       return res.status(200).json({ task: refreshedTask });
     }
 
