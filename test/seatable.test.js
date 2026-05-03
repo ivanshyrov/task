@@ -2,6 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
+process.env.NODE_ENV = "test";
+
 const {
   buildDeleteRequestBody,
   buildUpdateRequestBody,
@@ -203,9 +205,10 @@ test("tasks api PUT sends SeaTable v2 updates payload", async () => {
     await handler(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.equal(calls.length, 2);
-    assert.equal(calls[0].options.method, "PUT");
-    assert.deepEqual(JSON.parse(calls[0].options.body), {
+    assert.equal(calls.length, 3);
+    assert.equal(calls[0].options.method, "POST");
+    assert.equal(calls[1].options.method, "PUT");
+    assert.deepEqual(JSON.parse(calls[1].options.body), {
       table_name: "Tasks",
       updates: [
         {
@@ -241,7 +244,7 @@ test("tasks api PUT sends SeaTable v2 updates payload", async () => {
         },
       ],
     });
-    assert.equal(calls[1].options.method, "POST");
+    assert.equal(calls[2].options.method, "POST");
   } finally {
     restore();
   }
@@ -282,10 +285,11 @@ test("task by id api DELETE resolves row id and sends v2 delete payload", async 
     await handler(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
     assert.equal(calls[0].options.method, "POST");
-    assert.equal(calls[1].options.method, "DELETE");
-    assert.deepEqual(JSON.parse(calls[1].options.body), {
+    assert.equal(calls[1].options.method, "POST");
+    assert.equal(calls[2].options.method, "DELETE");
+    assert.deepEqual(JSON.parse(calls[2].options.body), {
       table_name: "Tasks",
       row_ids: ["resolved-row-id"],
     });

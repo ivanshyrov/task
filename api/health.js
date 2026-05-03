@@ -3,17 +3,15 @@ const {
   getRowsBaseUrl,
   seatableRequest,
 } = require("./_seatable");
+const { ensureAuth } = require("./_auth");
+const { applyCors, applySecurityHeaders } = require("./_security");
 
 module.exports = async (req, res) => {
-  if (typeof res?.setHeader === "function") {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  }
-  if (req.method === "OPTIONS") {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    return res.status(204).end();
-  }
+  applySecurityHeaders(res);
+  const corsOk = applyCors(req, res, "GET, OPTIONS");
+  if (!corsOk) return;
+  const currentUser = ensureAuth(req, res, { roles: ["admin", "employee"] });
+  if (!currentUser) return;
 
   if (req.method !== "GET") {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -49,7 +47,6 @@ module.exports = async (req, res) => {
       ok: true,
       service: "seatable",
       latencyMs: Date.now() - startedAt,
-      server: process.env.SEATABLE_SERVER || "https://cloud.seatable.io",
       at: new Date().toISOString(),
     });
   } catch (error) {
@@ -57,7 +54,7 @@ module.exports = async (req, res) => {
       ok: false,
       service: "seatable",
       latencyMs: Date.now() - startedAt,
-      error: error?.message || String(error),
+      error: "Service unavailable",
       at: new Date().toISOString(),
     });
   }

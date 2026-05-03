@@ -6,6 +6,8 @@ const {
   getRowsBaseUrl,
   seatableRequest,
 } = require("../_seatable");
+const { ensureAuth } = require("../_auth");
+const { applyCors, applySecurityHeaders } = require("../_security");
 
 const TABLE_NAME = process.env.SEATABLE_USERS_TABLE || "Users";
 const MAX_REQUEST_SIZE = 100 * 1024;
@@ -25,9 +27,11 @@ function validateRole(str) {
 }
 
 module.exports = async (req, res) => {
-  if (typeof res?.setHeader === "function") {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  }
+  applySecurityHeaders(res);
+  const corsOk = applyCors(req, res);
+  if (!corsOk) return;
+  const currentUser = ensureAuth(req, res, { roles: ["admin", "employee"] });
+  if (!currentUser) return;
 
   const bodyStr = JSON.stringify(req.body || {});
   if (bodyStr.length > MAX_REQUEST_SIZE) {
@@ -85,7 +89,6 @@ module.exports = async (req, res) => {
           email: row.email || "",
           phone: row.phone || "",
           office: row.office || "",
-          passwordHash: row.password_hash || "",
           avatar: row.avatar || "",
           _id: row._id,
         }));
@@ -101,7 +104,6 @@ module.exports = async (req, res) => {
           email: row.email || "",
           phone: row.phone || "",
           office: row.office || "",
-          passwordHash: row.password_hash || "",
           avatar: row.avatar || "",
           _id: row._id,
         }));
@@ -111,6 +113,7 @@ module.exports = async (req, res) => {
 
     // POST - создать пользователя
     if (req.method === "POST") {
+      if (currentUser.role !== "admin") return res.status(403).json({ error: "Forbidden" });
       const { user } = req.body;
       const username = String(user?.username || "").trim();
 
@@ -143,6 +146,7 @@ module.exports = async (req, res) => {
 
     // PUT - обновить пользователя
     if (req.method === "PUT") {
+      if (currentUser.role !== "admin") return res.status(403).json({ error: "Forbidden" });
       const username = req.query?.username || req.body?.username;
       const user = req.body?.user || req.body;
       if (!username) return res.status(400).json({ error: "Требуется username" });
@@ -194,6 +198,7 @@ module.exports = async (req, res) => {
 
     // DELETE - удалить пользователя
     if (req.method === "DELETE") {
+      if (currentUser.role !== "admin") return res.status(403).json({ error: "Forbidden" });
       const username = req.query?.username || req.body?.username;
       if (!username) return res.status(400).json({ error: "Требуется username" });
 

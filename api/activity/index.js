@@ -6,6 +6,8 @@ const {
   getRowsBaseUrl,
   seatableRequest,
 } = require("../_seatable");
+const { ensureAuth } = require("../_auth");
+const { applyCors, applySecurityHeaders } = require("../_security");
 
 const TABLE_NAME = process.env.SEATABLE_ACTIVITY_TABLE || "ActivityDirections";
 const MAX_REQUEST_SIZE = 100 * 1024;
@@ -28,11 +30,13 @@ function checkRateLimit(ip) {
 }
 
 module.exports = async (req, res) => {
-  if (typeof res?.setHeader === "function") {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  }
+  applySecurityHeaders(res);
+  const corsOk = applyCors(req, res);
+  if (!corsOk) return;
+  const currentUser = ensureAuth(req, res, { roles: ["admin", "employee"] });
+  if (!currentUser) return;
   
-  const clientIP = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+  const clientIP = req?.headers?.["x-forwarded-for"] || req?.connection?.remoteAddress || "unknown";
   if (!checkRateLimit(clientIP)) {
     return res.status(429).json({ error: "Too many requests" });
   }
@@ -71,6 +75,7 @@ module.exports = async (req, res) => {
 
     // POST - создать направление деятельности
     if (req.method === "POST") {
+      if (currentUser.role !== "admin") return res.status(403).json({ error: "Forbidden" });
       const { name } = req.body;
       const cleanName = String(name || "").trim().slice(0, 255);
       if (!cleanName) {
@@ -106,6 +111,7 @@ module.exports = async (req, res) => {
 
     // PUT - обновить направление деятельности
     if (req.method === "PUT") {
+      if (currentUser.role !== "admin") return res.status(403).json({ error: "Forbidden" });
       const rowId = req.query?.row_id || req.body?.row_id;
       const { name } = req.body;
       if (!rowId) {
@@ -133,6 +139,7 @@ module.exports = async (req, res) => {
 
     // DELETE - удалить направление деятельности
     if (req.method === "DELETE") {
+      if (currentUser.role !== "admin") return res.status(403).json({ error: "Forbidden" });
       const rowId = req.query?.row_id || req.body?.row_id;
       if (!rowId) {
         return res.status(400).json({ error: "Требуется row_id" });

@@ -8,6 +8,8 @@ const {
   normalizeAttachmentsForSeaTable,
   seatableRequest,
 } = require("../_seatable");
+const { ensureAuth } = require("../_auth");
+const { applyCors, applySecurityHeaders } = require("../_security");
 const fallbackNormalizeAttachments = async (_accessMeta, attachments) =>
   Array.isArray(attachments) ? attachments : [];
 
@@ -33,9 +35,11 @@ function checkRateLimit(ip) {
 }
 
 module.exports = async (req, res) => {
-  if (typeof res?.setHeader === "function") {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  }
+  applySecurityHeaders(res);
+  const corsOk = applyCors(req, res);
+  if (!corsOk) return;
+  const currentUser = ensureAuth(req, res, { roles: ["admin", "employee"] });
+  if (!currentUser) return;
   
   const clientIP = req?.headers?.["x-forwarded-for"] || req?.connection?.remoteAddress || "unknown";
   if (!checkRateLimit(clientIP)) {
@@ -202,11 +206,17 @@ module.exports = async (req, res) => {
         }
         tasks = all.map(mapRowToTask);
       }
+      if (currentUser.role !== "admin") {
+        tasks = tasks.filter((task) => String(task.author || "") === String(currentUser.fullName || ""));
+      }
       return res.status(200).json({ tasks });
     }
 
     if (req.method === "POST") {
       const task = req.body || {};
+      if (currentUser.role !== "admin") {
+        task.author = currentUser.fullName || task.author || "";
+      }
       const normalizedAttachments = await (
         typeof normalizeAttachmentsForSeaTable === "function"
           ? normalizeAttachmentsForSeaTable
@@ -286,6 +296,18 @@ module.exports = async (req, res) => {
       const task = req.body || {};
       const rowId = task.row_id;
       const taskId = task.id;
+      const existingTaskRow = await fetchTaskById(taskId);
+      if (!existingTaskRow) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      const existingTask = mapRowToTask(existingTaskRow);
+      if (
+        currentUser.role !== "admin" &&
+        String(existingTask.author || "") !== String(currentUser.fullName || "")
+      ) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
       
       if (!rowId) {
         return res.status(400).json({ error: "Требуется row_id" });
@@ -339,6 +361,15 @@ module.exports = async (req, res) => {
     if (req.method === "DELETE") {
       const row_id = req.body?.row_id;
       const id = req.body?.id;
+      if (currentUser.role !== "admin") {
+        const existingTaskRow = await fetchTaskById(id);
+        if (!existingTaskRow) return res.status(404).json({ error: "Task not found" });
+        const existingTask = mapRowToTask(existingTaskRow);
+        if (String(existingTask.author || "") !== String(currentUser.fullName || "")) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
+      }
+
       
       if (!row_id) {
         return res.status(400).json({ error: "Требуется row_id" });

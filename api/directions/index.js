@@ -6,6 +6,8 @@ const {
   getRowsBaseUrl,
   seatableRequest,
 } = require("../_seatable");
+const { ensureAuth } = require("../_auth");
+const { applyCors, applySecurityHeaders } = require("../_security");
 
 const TABLE_NAME = process.env.SEATABLE_DIRECTIONS_TABLE || "Directions";
 const MAX_REQUEST_SIZE = 100 * 1024;
@@ -28,11 +30,13 @@ function checkRateLimit(ip) {
 }
 
 module.exports = async (req, res) => {
-  if (typeof res?.setHeader === "function") {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  }
+  applySecurityHeaders(res);
+  const corsOk = applyCors(req, res);
+  if (!corsOk) return;
+  const currentUser = ensureAuth(req, res, { roles: ["admin", "employee"] });
+  if (!currentUser) return;
   
-  const clientIP = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+  const clientIP = req?.headers?.["x-forwarded-for"] || req?.connection?.remoteAddress || "unknown";
   if (!checkRateLimit(clientIP)) {
     return res.status(429).json({ error: "Too many requests" });
   }
@@ -106,6 +110,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "POST") {
+      if (currentUser.role !== "admin") return res.status(403).json({ error: "Forbidden" });
       const { name } = req.body || {};
       const directionName = String(name || "").trim();
       if (!directionName) return res.status(400).json({ error: "Требуется name" });
@@ -126,6 +131,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "PUT") {
+      if (currentUser.role !== "admin") return res.status(403).json({ error: "Forbidden" });
       const oldName = String(req.body?.oldName || req.query?.oldName || "").trim();
       const name = String(req.body?.name || req.query?.name || "").trim();
       if (!oldName || !name) return res.status(400).json({ error: "Требуются oldName и name" });
@@ -155,6 +161,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "DELETE") {
+      if (currentUser.role !== "admin") return res.status(403).json({ error: "Forbidden" });
       const name = String(req.body?.name || req.query?.name || "").trim();
       if (!name) return res.status(400).json({ error: "Требуется name" });
 

@@ -8,23 +8,20 @@ const {
   normalizeAttachmentsForSeaTable,
   seatableRequest,
 } = require("../_seatable");
+const { ensureAuth } = require("../_auth");
+const { applyCors, applySecurityHeaders } = require("../_security");
 const fallbackNormalizeAttachments = async (_accessMeta, attachments) =>
   Array.isArray(attachments) ? attachments : [];
 
 const TABLE_NAME = process.env.SEATABLE_TABLE_NAME || "Tasks";
 const VIEW_NAME = process.env.SEATABLE_VIEW_NAME || "Default";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
 module.exports = async (req, res) => {
-  if (typeof res.setHeader === "function") {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-    Object.entries(CORS_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
-  }
+  applySecurityHeaders(res);
+  const corsOk = applyCors(req, res);
+  if (!corsOk) return;
+  const currentUser = ensureAuth(req, res, { roles: ["admin", "employee"] });
+  if (!currentUser) return;
 
   const method = String(req.method || "").toUpperCase();
   
@@ -115,7 +112,11 @@ module.exports = async (req, res) => {
       if (!Number.isFinite(numericId)) return res.status(400).json({ error: "invalid id", debug });
       const row = await fetchTaskByIdFull();
       if (!row) return res.status(404).json({ error: "Task not found", debug });
-      return res.status(200).json({ task: mapRowToTask(row) });
+      const task = mapRowToTask(row);
+      if (currentUser.role !== "admin" && String(task.author || "") !== String(currentUser.fullName || "")) {
+        return res.status(403).json({ error: "Forbidden", debug });
+      }
+      return res.status(200).json({ task });
     }
 
     if (method === "PUT") {
@@ -123,6 +124,16 @@ module.exports = async (req, res) => {
       const rowId = req.body?.row_id || (await resolveRowId());
       debug.resolvedRowId = rowId || null;
       if (!rowId) return res.status(404).json({ error: "Task not found (cannot resolve row_id)", debug });
+
+      const existingRow = await fetchTaskByIdFull();
+      if (!existingRow) return res.status(404).json({ error: "Task not found", debug });
+      const existingTask = mapRowToTask(existingRow);
+      if (
+        currentUser.role !== "admin" &&
+        String(existingTask.author || "") !== String(currentUser.fullName || "")
+      ) {
+        return res.status(403).json({ error: "Forbidden", debug });
+      }
 
       const normalizedAttachments = await (
         typeof normalizeAttachmentsForSeaTable === "function"
@@ -158,6 +169,15 @@ module.exports = async (req, res) => {
 
     if (method === "DELETE") {
       debug.bodyHasRowId = Boolean(req.body?.row_id);
+      const existingRow = await fetchTaskByIdFull();
+      if (!existingRow) return res.status(404).json({ error: "Task not found", debug });
+      const existingTask = mapRowToTask(existingRow);
+      if (
+        currentUser.role !== "admin" &&
+        String(existingTask.author || "") !== String(currentUser.fullName || "")
+      ) {
+        return res.status(403).json({ error: "Forbidden", debug });
+      }
       const rowId = req.body?.row_id || (await resolveRowId());
       debug.resolvedRowId = rowId || null;
       if (!rowId) return res.status(404).json({ error: "Task not found (cannot resolve row_id)", debug });

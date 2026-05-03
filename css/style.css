@@ -194,15 +194,13 @@ body::before{
 .pagination-size select { height:32px; padding:0 8px; border:1px solid var(--border); border-radius:8px; background:#fff; cursor:pointer; }
 
 .tasks-table { width:100%; border-collapse:collapse; font-size:0.85rem; white-space:nowrap; }
-.tasks-table th, .tasks-table td { padding:12px; border-bottom:1px solid var(--border); text-align:left; }
+.tasks-table th, .tasks-table td { padding:12px; border-bottom:none; text-align:left; }
 .tasks-table th { background:#edf4fb; font-weight:700; color:#274e79; }
+.tasks-table thead tr { border-bottom:1px solid var(--border); }
+.tasks-table tbody tr { border-bottom:1px solid var(--border); }
 .tasks-table tbody tr:hover { background:#f5faff; cursor:pointer; }
 .tasks-table tbody tr:nth-child(2n) td{ background:rgba(255,255,255,0.45); }
 .tasks-table tbody tr:hover td{ background:rgba(245,250,255,0.95); }
-.tasks-table th:nth-child(15),
-.tasks-table td:nth-child(15) {
-    border-right: 1px solid var(--border);
-}
 .tasks-table th:nth-child(15),
 .tasks-table th:nth-child(16),
 .tasks-table td:nth-child(15),

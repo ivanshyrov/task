@@ -84,6 +84,7 @@
             const existing = new Set(remoteUsers.map(u => u.username));
             for (const def of DEFAULT_USERS.filter(u => u.username === 'admin')) {
                 if (existing.has(def.username)) continue;
+                if (currentUser?.role !== 'admin') break;
                 const passwordHash = await hashPassword(def.password);
                 await apiRequest(API_USERS, {
                     method: 'POST',
@@ -488,6 +489,9 @@ async function addUser(userData) {
     const API_DIRECTIONS = '/api/directions';
     const API_ACTIVITY = '/api/activity';
     const API_HEALTH = '/api/health';
+    const API_AUTH_LOGIN = '/api/auth/login';
+    const API_AUTH_ME = '/api/auth/me';
+    const API_AUTH_LOGOUT = '/api/auth/logout';
 
     const DEFAULT_ACTIVITY_DIRECTIONS = [
         'Управление делами',
@@ -774,8 +778,8 @@ async function addUser(userData) {
             <tr>
                 <td>${escapeHtml(d.name)}</td>
                 <td>
-                    <button class="icon-btn edit-activity-btn" data-row-id="${d.row_id}" title="Редактировать"><i class="fas fa-pen"></i></button>
-                    <button class="icon-btn delete-activity-btn" data-row-id="${d.row_id}" data-name="${escapeHtml(d.name)}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>
+                    <button class="icon-btn edit-activity-btn" data-row-id="${escapeAttr(d.row_id)}" title="Редактировать"><i class="fas fa-pen"></i></button>
+                    <button class="icon-btn delete-activity-btn" data-row-id="${escapeAttr(d.row_id)}" data-name="${escapeHtml(d.name)}" title="Удалить" style="margin-left:4px;"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>
         `).join('') || '<tr><td colspan="2">Нет направлений</td></tr>';
@@ -824,6 +828,7 @@ async function addUser(userData) {
         loginScreen.style.display = 'flex';
         sidebar.classList.remove('open');
         activeQuickFilter = '';
+        void apiRequest(API_AUTH_LOGOUT, { method: 'POST' }).catch(() => {});
     }
 
     function getAppSettings() {
@@ -1069,6 +1074,7 @@ return '';  // OK
         try {
             response = await fetch(url, {
                 headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+                credentials: 'include',
                 signal: controller.signal,
                 ...(method === 'GET' ? { cache: 'no-store' } : {}),
                 ...options
@@ -1167,15 +1173,16 @@ return '';  // OK
         
         if (!checkLoginRateLimit()) return;
         
-        // Ждём инициализации пользователей
-        if (users.length === 0) {
-            await initUsers();
-        }
-        
         const username = document.getElementById('loginUsername').value.trim();
         const password = document.getElementById('loginPassword').value;
-        const passwordHash = await hashPassword(password);
-        const user = users.find(u => u.username === username && u.passwordHash === passwordHash);
+        let user = null;
+        try {
+            const payload = await apiRequest(API_AUTH_LOGIN, {
+                method: 'POST',
+                body: JSON.stringify({ username, password })
+            });
+            user = payload?.user || null;
+        } catch (error) {}
         if (!user) {
             recordFailedLogin();
             showToast('Неверный логин или пароль', 'error');
@@ -1194,6 +1201,7 @@ return '';  // OK
         loginScreen.style.display = 'none';
         app.style.display = 'flex';
         try {
+            await initUsers();
             await initApp();
         } catch (error) {
             console.error('[login] initApp failed', error);
@@ -1440,15 +1448,27 @@ function getFilteredTasks() {
                 if (daysLeft < 0) { daysDisplay = 'Просрочено'; daysStyle = 'color:var(--danger); font-weight:bold;'; }
                 else { daysDisplay = daysLeft + ' дн.'; }
             } else { daysDisplay = '—'; }
+            const safeTitle = escapeHtml(task.title || '—');
+            const safeDepartment = escapeHtml(task.department || '');
+            const safeAuthor = escapeHtml(task.author || '');
+            const safeAssignee = escapeHtml(task.assignee || '—');
+            const safeOffice = escapeHtml(task.office || '');
+            const safePhone = escapeHtml(task.phone || '');
+            const safePriority = escapeHtml(task.priority || '');
+            const safeStatus = escapeHtml(task.status || '');
+            const safeDaysDisplay = escapeHtml(daysDisplay);
+            const safeDbName = escapeHtml(dbName);
+            const safeCreatedAt = escapeHtml(formatDate(task.createdAt));
+            const safeDeadline = escapeHtml(formatDate(task.deadline));
 
             html += `<tr data-index="${task.id}" draggable="true" class="task-row" data-taskid="${task.id}">
                 <td><input type="checkbox" class="task-checkbox" data-id="${task.id}" ${canDelete ? '' : 'disabled'}></td>
-                <td>${task.id}</td><td>${formatDate(task.createdAt)}</td><td>${dbName}</td><td>${task.title || '—'}</td><td>${task.department}</td>
-                <td>${task.author}</td><td>${task.assignee || '—'}</td><td>${task.office}</td><td>${task.phone}</td>
-                <td class="priority-${task.priority.toLowerCase()}">${task.priority}</td>
-                <td><span class="status-badge ${statusClass}">${task.status}</span></td>
-                <td>${formatDate(task.deadline)}</td>
-                <td style="${daysStyle}">${daysDisplay}</td>
+                <td>${task.id}</td><td>${safeCreatedAt}</td><td>${safeDbName}</td><td>${safeTitle}</td><td>${safeDepartment}</td>
+                <td>${safeAuthor}</td><td>${safeAssignee}</td><td>${safeOffice}</td><td>${safePhone}</td>
+                <td class="priority-${task.priority.toLowerCase()}">${safePriority}</td>
+                <td><span class="status-badge ${statusClass}">${safeStatus}</span></td>
+                <td>${safeDeadline}</td>
+                <td style="${daysStyle}">${safeDaysDisplay}</td>
                 <td>${task.report ? '✓' : ''}</td>
                 <td class="action-buttons">
                     <button class="icon-btn view-task" title="Просмотр"><i class="fas fa-eye"></i></button>
@@ -1479,18 +1499,18 @@ function getFilteredTasks() {
                     <div class="task-card" data-taskid="${task.id}">
                         <div class="task-card-header">
                             <span class="task-card-id">#${task.id}</span>
-                            <span class="status-badge ${statusClass}">${task.status}</span>
+                            <span class="status-badge ${statusClass}">${escapeHtml(task.status)}</span>
                         </div>
-                        <div class="task-card-title">${task.title || '—'}</div>
+                        <div class="task-card-title">${escapeHtml(task.title || '—')}</div>
                         <div class="task-card-meta">
-                            <span class="task-card-meta-item">${task.department}</span>
-                            <span class="task-card-meta-item">${task.author}</span>
-                            ${task.assignee ? `<span class="task-card-meta-item">${task.assignee}</span>` : ''}
-                            <span class="task-card-meta-item">${formatDate(task.deadline)}</span>
+                            <span class="task-card-meta-item">${escapeHtml(task.department)}</span>
+                            <span class="task-card-meta-item">${escapeHtml(task.author)}</span>
+                            ${task.assignee ? `<span class="task-card-meta-item">${escapeHtml(task.assignee)}</span>` : ''}
+                            <span class="task-card-meta-item">${escapeHtml(formatDate(task.deadline))}</span>
                             ${daysDisplay ? `<span class="task-card-meta-item">${daysDisplay}</span>` : ''}
                         </div>
                         <div class="task-card-status">
-                            <span class="priority-${task.priority.toLowerCase()}" style="font-weight:600;">${task.priority}</span>
+                            <span class="priority-${task.priority.toLowerCase()}" style="font-weight:600;">${escapeHtml(task.priority)}</span>
                         </div>
                         <div class="task-card-actions">
                             <button class="btn btn-outline view-task-card" data-id="${task.id}">
@@ -1754,7 +1774,9 @@ function getFilteredTasks() {
         f.department.value = task.department;
         f.author.value = task.author;
         const assigneeOptions = [''].concat(getAssignableEmployees());
-        f.assignee.innerHTML = assigneeOptions.map(name => `<option value="${name}">${name || 'Не назначен'}</option>`).join('');
+        f.assignee.innerHTML = assigneeOptions
+            .map(name => `<option value="${escapeAttr(name)}">${escapeHtml(name || 'Не назначен')}</option>`)
+            .join('');
         f.assignee.value = task.assignee || '';
         f.office.value = task.office;
         f.phone.value = task.phone;
@@ -2124,7 +2146,10 @@ setTodayFilterBtn.addEventListener('click', () => {
     }
     function updateNotificationBadge() { notificationCount.textContent = notifications.filter(n => !n.read).length; }
     notificationBadge.addEventListener('click', () => {
-        notificationsList.innerHTML = notifications.map(n => `<div class="notification-item ${n.read?'':'unread'}"><div>${n.message}</div></div>`).join('') || '<p>Нет уведомлений</p>';
+        notificationsList.innerHTML =
+            notifications
+                .map(n => `<div class="notification-item ${n.read ? '' : 'unread'}"><div>${escapeHtml(n.message)}</div></div>`)
+                .join('') || '<p>Нет уведомлений</p>';
         notifications.forEach(n => n.read = true);
         updateNotificationBadge();
         notificationsModal.classList.add('show');
@@ -2445,7 +2470,9 @@ setTodayFilterBtn.addEventListener('click', () => {
         const deptSelect = document.getElementById('editDepartment');
         const activityNames = activityData.map(a => a.name);
         deptSelect.innerHTML = '<option value="">Выберите направление</option>' + 
-            activityNames.map(name => `<option value="${name}" ${name === user.department ? 'selected' : ''}>${name}</option>`).join('');
+            activityNames
+                .map(name => `<option value="${escapeAttr(name)}" ${name === user.department ? 'selected' : ''}>${escapeHtml(name)}</option>`)
+                .join('');
         document.getElementById('editRole').value = user.role || 'employee';
         document.getElementById('editEmail').value = user.email || '';
         document.getElementById('editPhone').value = user.phone || '';
@@ -2462,7 +2489,9 @@ setTodayFilterBtn.addEventListener('click', () => {
         editForm.dataset.originalUsername = username;
         
         const currentDept = user.department || '';
-        const actOpts = activityNames.map(n => `<option value="${n}" ${n === currentDept ? 'selected' : ''}>${n}</option>`).join('');
+        const actOpts = activityNames
+            .map(n => `<option value="${escapeAttr(n)}" ${n === currentDept ? 'selected' : ''}>${escapeHtml(n)}</option>`)
+            .join('');
         deptSelect.innerHTML = '<option value="">Выберите направление</option>' + actOpts;
         
         editModal.classList.add('show');
@@ -2647,7 +2676,7 @@ function renderDetailedStats() {
             if (execSelect) {
                 const admins = getAssignableEmployees();
                 execSelect.innerHTML = '<option value="">Все исполнители</option>' + 
-                    admins.map(name => `<option value="${name}">${name}</option>`).join('');
+                    admins.map(name => `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join('');
                 execSelect.style.display = isAdmin ? 'block' : 'none';
             }
             if (toggleBtn) {
@@ -2776,7 +2805,7 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
         if (addUserDepartment) {
             const activityNames = activityData.map(a => a.name);
             addUserDepartment.innerHTML = '<option value="">Выберите направление</option>' + 
-                activityNames.map(name => `<option value="${name}">${name}</option>`).join('');
+                activityNames.map(name => `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join('');
         }
         addUserModal.classList.add('show');
     });
@@ -2882,7 +2911,7 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
                 // Показать выбор автора для админа - только админы
                 const adminUsers = users.filter(u => u.role === 'admin').map(u => u.fullName).filter(Boolean).sort();
                 authorSelect.innerHTML = '<option value="">Выберите автора</option>' + 
-                    adminUsers.map(name => `<option value="${name}">${name}</option>`).join('');
+                    adminUsers.map(name => `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join('');
                 authorGroup.style.display = 'block';
             } else {
                 authorGroup.style.display = 'none';
@@ -3156,15 +3185,18 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
     }
 
     async function bootstrapSession() {
-        await initUsers();
-        const lastUsername = localStorage.getItem(ACTIVE_SESSION_KEY);
-        if (!lastUsername) return;
-        const savedUser = findUserByUsername(lastUsername);
-        if (!savedUser) {
+        let payload;
+        try {
+            payload = await apiRequest(API_AUTH_ME, { timeoutMs: 8000 });
+        } catch (error) {
             localStorage.removeItem(ACTIVE_SESSION_KEY);
             return;
         }
+        const savedUser = payload?.user;
+        if (!savedUser?.username) return;
         currentUser = { ...savedUser };
+        await initUsers();
+        localStorage.setItem(ACTIVE_SESSION_KEY, currentUser.username);
         applyRole(currentUser.role);
         loginScreen.style.display = 'none';
         app.style.display = 'flex';
