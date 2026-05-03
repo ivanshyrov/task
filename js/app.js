@@ -312,15 +312,18 @@
             phone: sanitizeHTML(userData.phone || ''),
             office: sanitizeHTML(userData.office || '')
         };
-        users.push(newUser);
-        // Синхронизация с SeaTable (если нужно)
+users.push(newUser);
         void syncUserToSeaTable(newUser, 'create');
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
         return { success: true, user: newUser };
     }
 
     async function editUser(username, userData) {
         const user = findUserByUsername(username);
         if (!user) return { success: false, error: 'Пользователь не найден' };
+        
+        const previousUsername = user.username;
+        const previousFullName = user.fullName;
         
         user.username = sanitizeHTML(userData.username);
         user.fullName = sanitizeHTML(userData.fullName);
@@ -335,7 +338,9 @@
         if (userData.password && userData.password.trim()) {
             user.passwordHash = await hashPassword(userData.password);
         }
-
+        
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+        
         migrateAvatarStorageKey(previousUsername, user.username);
         if (isCurrentUserIdentity(previousUsername)) {
             currentUser = { ...user };
@@ -355,6 +360,7 @@
         if (idx < 0) return { success: false, error: 'Пользователь не найден' };
         const deletedUser = users[idx];
         users.splice(idx, 1);
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
         void syncUserToSeaTable(deletedUser, 'delete');
         return { success: true };
     }
@@ -899,17 +905,11 @@
         if (!TASK_STATUSES.includes(task.status)) return 'Некорректный статус';
         if (!task.department) return 'Направление техподдержки обязательно';
         if (task.status === 'Отклонена' && !task.rejectedReason?.trim()) return 'Укажите причину отклонения';
-        return '';  // OK
+return '';  // OK
     }
 
-function canTransitionStatus(task, nextStatus) {
-        if (task.status === nextStatus) return true;
-        const allowed = STATUS_TRANSITIONS[task.status];
-        if (!allowed) return false;
-        if (currentUser.role === 'employee') {
-            return nextStatus === 'В работе' || nextStatus === 'Завершена';
-        }
-return allowed.includes(nextStatus);
+    function getAssignableEmployees() {
+        return users.filter(u => u.role === 'admin').map(u => u.fullName).filter(Boolean).sort();
     }
 
     function addHistoryEntry(task, action) {
@@ -964,18 +964,13 @@ return allowed.includes(nextStatus);
     }
 
     function canTransitionStatus(task, nextStatus) {
-        if (!TASK_STATUSES.includes(nextStatus)) return false;
         if (task.status === nextStatus) return true;
-        if (!STATUS_TRANSITIONS[task.status]?.includes(nextStatus)) return false;
-        if (!currentUser) return false;
-        if (currentUser.role === 'admin') return true;
-        if (currentUser.role === 'admin') return canViewTask(task);
+        const allowed = STATUS_TRANSITIONS[task.status];
+        if (!allowed) return false;
         if (currentUser.role === 'employee') {
-            if (task.author !== currentUser.fullName) return false;
-            if (task.assignee && task.assignee !== currentUser.fullName) return false;
-            return nextStatus === 'В работе' || nextStatus === 'На проверке';
+            return nextStatus === 'В работе' || nextStatus === 'Завершена';
         }
-        return false;
+        return allowed.includes(nextStatus);
     }
 
     function getAssignableEmployees() {
@@ -2398,7 +2393,10 @@ setTodayFilterBtn.addEventListener('click', () => {
         editUsernameInput.value = user.username;
         document.getElementById('editFullName').value = user.fullName;
         document.getElementById('editPosition').value = user.position || '';
-        document.getElementById('editDepartment').value = user.department || '';
+        const deptSelect = document.getElementById('editDepartment');
+        const activityNames = activityData.map(a => a.name);
+        deptSelect.innerHTML = '<option value="">Выберите направление</option>' + 
+            activityNames.map(name => `<option value="${name}" ${name === user.department ? 'selected' : ''}>${name}</option>`).join('');
         document.getElementById('editRole').value = user.role || 'employee';
         document.getElementById('editEmail').value = user.email || '';
         document.getElementById('editPhone').value = user.phone || '';
@@ -2414,10 +2412,9 @@ setTodayFilterBtn.addEventListener('click', () => {
         // Сохраняем оригинальный логин для поиска
         editForm.dataset.originalUsername = username;
         
-        // Заполняем направления
-        const deptSelect = document.getElementById('editDepartment');
-        deptSelect.innerHTML = '<option value="">Выберите направление</option>' + 
-            FULL_DEPARTMENTS.map(dept => `<option value="${dept}">${dept}</option>`).join('');
+        const currentDept = user.department || '';
+        const actOpts = activityNames.map(n => `<option value="${n}" ${n === currentDept ? 'selected' : ''}>${n}</option>`).join('');
+        deptSelect.innerHTML = '<option value="">Выберите направление</option>' + actOpts;
         
         editModal.classList.add('show');
     }
@@ -2723,13 +2720,14 @@ function renderDetailedStats() {
     const addUserModal = document.getElementById('addUserModal');
     const addUserDepartment = document.getElementById('addUserDepartment');
     
-    document.getElementById('addUserBtn')?.addEventListener('click', () => {
+document.getElementById('addUserBtn')?.addEventListener('click', () => {
         if (!currentUser || currentUser.role !== 'admin') return;
         addUserForm.reset();
-        // Заполняем направления
+        // Заполняем направления деятельности
         if (addUserDepartment) {
+            const activityNames = activityData.map(a => a.name);
             addUserDepartment.innerHTML = '<option value="">Выберите направление</option>' + 
-                FULL_DEPARTMENTS.map(dept => `<option value="${dept}">${dept}</option>`).join('');
+                activityNames.map(name => `<option value="${name}">${name}</option>`).join('');
         }
         addUserModal.classList.add('show');
     });

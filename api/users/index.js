@@ -196,15 +196,7 @@ module.exports = async (req, res) => {
             parameters: [username],
           }),
         });
-        existingRow = Array.isArray(result?.results) && result.results.length ? result.results[0] : null;
-      } else {
-        const rows = await seatableRequest(accessMeta.access_token, rowsUrl, { method: "GET" });
-        const list = Array.isArray(rows) ? rows : rows?.rows || [];
-        existingRow = list.find((item) => (item?.row || item)?.username === username) || null;
-      }
-      if (existingRow) {
-        return res.status(409).json({ error: "Пользователь с таким логином уже существует" });
-      }
+        // Убрана проверка уникальности логина - можно добавлять несколько человек с одинаковым логином
       
       const row = {
         username,
