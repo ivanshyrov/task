@@ -199,6 +199,16 @@ body::before{
 .tasks-table tbody tr:hover { background:#f5faff; cursor:pointer; }
 .tasks-table tbody tr:nth-child(2n) td{ background:rgba(255,255,255,0.45); }
 .tasks-table tbody tr:hover td{ background:rgba(245,250,255,0.95); }
+.tasks-table th:nth-child(15),
+.tasks-table td:nth-child(15) {
+    border-right: 1px solid var(--border);
+}
+.tasks-table th:nth-child(15),
+.tasks-table th:nth-child(16),
+.tasks-table td:nth-child(15),
+.tasks-table td:nth-child(16) {
+    text-align: center;
+}
 .data-table { width:100%; border-collapse:collapse; }
 .data-table th, .data-table td { padding:12px; border-bottom:1px solid var(--border); }
 .data-table th { background:#edf4fb; color:#274e79; }

@@ -25,7 +25,9 @@ function validateRole(str) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  if (typeof res?.setHeader === "function") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  }
 
   const bodyStr = JSON.stringify(req.body || {});
   if (bodyStr.length > MAX_REQUEST_SIZE) {
@@ -169,14 +171,23 @@ module.exports = async (req, res) => {
         email: user.email || "",
         phone: user.phone || "",
         office: user.office || "",
-        password_hash: user.passwordHash || "",
-        avatar: user.avatar || "",
       };
+      if (typeof user.passwordHash === "string" && user.passwordHash.length > 0) {
+        row.password_hash = user.passwordHash;
+      }
+      if (typeof user.avatar === "string" && user.avatar.length > 0) {
+        row.avatar = user.avatar;
+      }
 
       await seatableRequest(meta.access_token, rowsCreateUrl, {
         method: "PUT",
         body: JSON.stringify(buildUpdateRequestBody({ isV2, tableName: TABLE_NAME, rowId, row })),
       });
+
+      const refreshedUser = await fetchUserByRowId(rowId);
+      if (!refreshedUser) {
+        throw new Error("SeaTable update verification failed: user not found after update");
+      }
 
       return res.status(200).json({ success: true });
     }

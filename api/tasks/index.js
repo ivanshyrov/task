@@ -37,7 +37,7 @@ module.exports = async (req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   }
   
-  const clientIP = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+  const clientIP = req?.headers?.["x-forwarded-for"] || req?.connection?.remoteAddress || "unknown";
   if (!checkRateLimit(clientIP)) {
     return res.status(429).json({ error: "Too many requests" });
   }
