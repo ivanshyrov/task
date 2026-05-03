@@ -221,6 +221,9 @@
                     <h2>Отчёты</h2>
                     <div style="display:flex; gap:10px; align-items:center;">
                         <select id="reportDatabase" class="filter-select"></select>
+                        <select id="reportExecutor" class="filter-select" data-role="admin" style="display:none;">
+                            <option value="">Все исполнители</option>
+                        </select>
                         <input type="date" id="reportDateFrom" class="filter-date" placeholder="С">
                         <input type="date" id="reportDateTo" class="filter-date" placeholder="По">
                         <button class="btn btn-outline" id="reportApplyBtn">Применить</button>

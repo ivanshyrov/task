@@ -757,12 +757,12 @@
             const name = this.dataset.name;
             showConfirmModal('Удалить направление?', `Направление "${name}" будет удалено.`, async () => {
                 try {
-                    await apiRequest(API_ACTIVITY, { method: 'DELETE', body: JSON.stringify({ name }), timeoutMs: 12000 });
+                    await apiRequest(API_ACTIVITY, { method: 'DELETE', body: JSON.stringify({ row_id: rowId }), timeoutMs: 12000 });
                     await initActivity();
                     renderActivity();
                     showToast('Направление удалено', 'success');
                 } catch (error) {
-                    showToast('Ошибка удаления', 'error');
+                    showToast('Ошибка удаления: ' + error.message, 'error');
                 }
             });
         }));
@@ -907,7 +907,7 @@
         if (!TASK_STATUSES.includes(task.status)) return 'Некорректный статус';
         if (!task.department) return 'Направление техподдержки обязательно';
         if (task.status === 'Отклонена' && !task.rejectedReason?.trim()) return 'Укажите причину отклонения';
-        return true;
+        return '';  // OK
     }
 
 function canTransitionStatus(task, nextStatus) {
@@ -1714,7 +1714,6 @@ function getFilteredTasks() {
         f.status.value = task.status;
         f.priority.value = task.priority;
         f.deadline.value = task.deadline || '';
-        f.type.value = task.type || '';
         f.title.value = task.title || '';
         f.description.value = task.description;
         f.database.value = databases.find(d => d.id === task.databaseId)?.name || '';
@@ -2448,11 +2447,17 @@ setTodayFilterBtn.addEventListener('click', () => {
     function updateStats() {
         let tasks = getCurrentDatabaseTasks();
         const isAdmin = currentUser?.role === 'admin';
+        const executorFilter = document.getElementById('reportExecutor');
+        const execValue = executorFilter?.value;
         const dateFrom = document.getElementById('reportDateFrom')?.value;
         const dateTo = document.getElementById('reportDateTo')?.value;
         
         if (!isAdmin) {
             tasks = tasks.filter(t => t.author === currentUser?.fullName);
+        }
+        
+        if (isAdmin && execValue) {
+            tasks = tasks.filter(t => t.assignee === execValue);
         }
         
         if (dateFrom || dateTo) {
@@ -2596,6 +2601,13 @@ setTodayFilterBtn.addEventListener('click', () => {
         if (viewId === 'reports') {
             updateStats();
             if (reportDatabase) reportDatabase.value = currentDatabaseId;
+            const execSelect = document.getElementById('reportExecutor');
+            if (execSelect) {
+                const admins = getAssignableEmployees();
+                execSelect.innerHTML = '<option value="">Все исполнители</option>' + 
+                    admins.map(name => `<option value="${name}">${name}</option>`).join('');
+                execSelect.style.display = currentUser?.role === 'admin' ? 'block' : 'none';
+            }
         } else if (viewId === 'activity') {
             renderActivity();
         } else if (viewId === 'bases') {
@@ -2883,6 +2895,9 @@ setTodayFilterBtn.addEventListener('click', () => {
         }));
         toggleDetailedStatsBtn.addEventListener('click', toggleDetailedStats);
         document.getElementById('reportApplyBtn')?.addEventListener('click', () => {
+            updateStats();
+        });
+        document.getElementById('reportExecutor')?.addEventListener('change', () => {
             updateStats();
         });
         reportDatabase.addEventListener('change', e => {
