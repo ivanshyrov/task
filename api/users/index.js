@@ -10,7 +10,7 @@ const {
 const TABLE_NAME = process.env.SEATABLE_USERS_TABLE || "Users";
 const MAX_REQUEST_SIZE = 100 * 1024;
 
-const VALID_USERNAME_RE = /^[a-z0-9_]{3,30}$/;
+const VALID_USERNAME_RE = /^[a-zA-Z0-9_а-яА-ЯёЁ\-]{2,30}$/;
 const VALID_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_ROLES = ["admin", "employee"];
 
@@ -113,7 +113,7 @@ module.exports = async (req, res) => {
       const username = String(user?.username || "").trim();
 
       if (!username || !validateUsername(username)) {
-        return res.status(400).json({ error: "Неверный логин (3-30 символов, a-z, 0-9, _)" });
+        return res.status(400).json({ error: "Неверный логин (2-30 символов)" });
       }
       if (user?.email && !validateEmail(user.email)) {
         return res.status(400).json({ error: "Неверный email" });

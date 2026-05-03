@@ -174,7 +174,7 @@
             }
         } catch (error) {
             console.error('[syncUserToSeaTable] error:', error.message);
-            // Не показываем ошибку пользователю - данные сохранены локально
+            showToast('Ошибка синхронизации: ' + error.message, 'error');
         }
     }
 
