@@ -353,9 +353,6 @@ users.push(newUser);
     }
 
     function deleteUser(username) {
-        if (username === 'admin') {
-            return { success: false, error: 'Нельзя удалить главного администратора' };
-        }
         const idx = users.findIndex(u => u.username === username);
         if (idx < 0) return { success: false, error: 'Пользователь не найден' };
         const deletedUser = users[idx];
