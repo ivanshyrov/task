@@ -306,7 +306,7 @@
         const newUser = {
             username: sanitizeHTML(userData.username),
             passwordHash,
-            role: 'employee',
+            role: userData.role || 'employee',
             department: sanitizeHTML(userData.department || ''),
             fullName: sanitizeHTML(userData.fullName),
             position: sanitizeHTML(userData.position || ''),
@@ -335,6 +335,7 @@
         user.fullName = sanitizeHTML(userData.fullName);
         user.position = sanitizeHTML(userData.position || '');
         user.department = sanitizeHTML(userData.department || '');
+        user.role = userData.role || 'employee';
         user.email = sanitizeHTML(userData.email || '');
         user.phone = sanitizeHTML(userData.phone || '');
         user.office = sanitizeHTML(userData.office || '');
@@ -1817,7 +1818,6 @@ function getFilteredTasks() {
         const prevStatus = task.status;
         const prevAssignee = task.assignee || '';
         const draft = { ...task };
-        draft.type = f.type.value;
         draft.title = f.title.value.trim() || task.title;
         draft.status = f.status.value;
         draft.priority = f.priority.value;
@@ -2321,7 +2321,7 @@ setTodayFilterBtn.addEventListener('click', () => {
         }
         
         try {
-            await apiRequest(API_ACTIVITY, { method: 'PUT', body: JSON.stringify({ oldName, name }), timeoutMs: 12000 });
+            await apiRequest(API_ACTIVITY, { method: 'PUT', body: JSON.stringify({ row_id: rowId, name }), timeoutMs: 12000 });
             await initActivity();
             renderActivity();
             document.getElementById('editActivityModal')?.classList.remove('show');
@@ -2342,6 +2342,8 @@ setTodayFilterBtn.addEventListener('click', () => {
     }
 
     // ==================== ПОЛЬЗОВАТЕЛИ ====================
+    const ROLE_LABELS = { admin: 'Администратор', employee: 'Сотрудник СП' };
+    
     function renderUsers() {
         const tbody = document.getElementById('usersTableBody');
         if (!tbody || !currentUser || currentUser.role !== 'admin') return;
@@ -2350,7 +2352,7 @@ setTodayFilterBtn.addEventListener('click', () => {
             `<tr>
                 <td>${sanitizeHTML(u.username)}</td>
                 <td>${sanitizeHTML(u.fullName)}</td>
-                <td>${sanitizeHTML(u.role)}</td>
+                <td>${ROLE_LABELS[u.role] || u.role}</td>
                 <td>${sanitizeHTML(u.department || '—')}</td>
                 <td>${sanitizeHTML(u.email || '—')}</td>
                 <td>${sanitizeHTML(u.phone || '—')}</td>
@@ -2401,6 +2403,7 @@ setTodayFilterBtn.addEventListener('click', () => {
         document.getElementById('editFullName').value = user.fullName;
         document.getElementById('editPosition').value = user.position || '';
         document.getElementById('editDepartment').value = user.department || '';
+        document.getElementById('editRole').value = user.role || 'employee';
         document.getElementById('editEmail').value = user.email || '';
         document.getElementById('editPhone').value = user.phone || '';
         document.getElementById('editOffice').value = user.office || '';

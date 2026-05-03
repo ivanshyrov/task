@@ -97,7 +97,7 @@
                         <p>Создание и контроль выполнения задач</p>
                     </div>
                     <div class="actions">
-                        <button class="btn btn-primary" id="openQuickTaskBtn"><i class="fas fa-plus"></i> НОВАЯ ЗАДАЧА</button>
+                        <button class="btn btn-primary" id="openQuickTaskBtn"><i class="fas fa-plus"></i> Новая заявка</button>
                         <button class="btn btn-outline" id="exportTasksBtn"><i class="fas fa-download"></i> Экспорт в Excel</button>
                     </div>
                 </div>
@@ -133,7 +133,6 @@
                     </div>
                 </div>
                 <div class="actions quick-filters-row" style="margin-top:10px;">
-                    <button class="btn btn-outline btn-small quick-filter-btn" data-quick-filter="my">Мои</button>
                     <button class="btn btn-outline btn-small quick-filter-btn" data-quick-filter="new">Новые</button>
                     <button class="btn btn-outline btn-small quick-filter-btn" data-quick-filter="inwork">В работе</button>
                     <button class="btn btn-outline btn-small quick-filter-btn" data-quick-filter="overdue">Просроченные</button>
@@ -144,7 +143,7 @@
                         <thead>
                             <tr>
                                 <th style="width:30px;"><input type="checkbox" id="selectAllTasks"></th>
-                                <th>ID</th><th>Дата создания</th><th>База</th><th>Тип</th><th>Тема</th><th>Направление</th><th>Автор</th><th>Исполнитель</th>
+                                <th>ID</th><th>Дата создания</th><th>База</th><th>Тема</th><th>Направление техподдержки</th><th>Автор</th><th>Исполнитель</th>
                                 <th>Кабинет</th><th>Телефон</th><th>Приоритет</th><th>Статус</th><th>Крайний срок</th>
                                 <th>Дней до срока</th><th>Отчёт</th><th>Действия</th>
                             </tr>
@@ -209,7 +208,7 @@
                 <p style="margin-top:10px; color:var(--text-secondary);">Управление учётными записями. Новые пользователи получают роль «Сотрудник».</p>
                 <div class="table-wrapper" style="margin-top:16px;">
                     <table class="data-table">
-                        <thead><tr><th>Логин</th><th>ФИО</th><th>Роль</th><th>Направление</th><th>Email</th><th>Телефон</th><th>Кабинет</th><th>Действия</th></tr></thead>
+                        <thead><tr><th>Логин</th><th>ФИО</th><th>Роль</th><th>Направление деятельности</th><th>Email</th><th>Телефон</th><th>Кабинет</th><th>Действия</th></tr></thead>
                         <tbody id="usersTableBody"></tbody>
                     </table>
                 </div>
@@ -443,9 +442,16 @@
                     <input type="text" name="position" placeholder="Специалист">
                 </div>
                 <div class="form-group">
-                    <label>Направление</label>
+                    <label>Направление деятельности</label>
                     <select name="department" id="addUserDepartment">
                         <option value="">Выберите направление</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Роль *</label>
+                    <select name="role" required>
+                        <option value="employee">Сотрудник СП</option>
+                        <option value="admin">Администратор</option>
                     </select>
                 </div>
                 <div class="form-row">
@@ -492,9 +498,16 @@
                     <input type="text" name="position" id="editPosition" placeholder="Специалист">
                 </div>
                 <div class="form-group">
-                    <label>Направление</label>
+                    <label>Направление деятельности</label>
                     <select name="department" id="editDepartment">
                         <option value="">Выберите направление</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Роль *</label>
+                    <select name="role" id="editRole" required>
+                        <option value="employee">Сотрудник СП</option>
+                        <option value="admin">Администратор</option>
                     </select>
                 </div>
                 <div class="form-row">
