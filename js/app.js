@@ -1421,7 +1421,7 @@ return '';  // OK
         
         if (filterDbAdmin) {
             filterDbAdmin.style.display = currentUser?.role === 'admin' ? 'block' : 'none';
-            filterDbAdmin.innerHTML = '';
+            filterDbAdmin.innerHTML = '<option value="">Все базы</option>';
             databases.forEach(db => {
                 const opt = document.createElement('option');
                 opt.value = db.id;
