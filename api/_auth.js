@@ -66,9 +66,26 @@ function clearSessionCookie(res) {
   );
 }
 
+/**
+ * Cookie must stay small (< ~4KB). Never put base64 avatars or large blobs in the signed session.
+ */
+function slimUserForSession(user) {
+  if (!user || typeof user !== "object") return user;
+  return {
+    username: user.username,
+    role: user.role,
+    fullName: user.fullName || "",
+    department: user.department || "",
+    position: user.position || "",
+    email: user.email || "",
+    phone: user.phone || "",
+    office: user.office || "",
+  };
+}
+
 function createSession(user) {
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  const token = signSessionToken({ user, exp: expiresAt });
+  const token = signSessionToken({ user: slimUserForSession(user), exp: expiresAt });
   return { token, expiresAt };
 }
 
