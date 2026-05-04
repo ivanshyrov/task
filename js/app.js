@@ -1484,8 +1484,10 @@ return '';  // OK
 
     function filterTasks() {
         let tasks;
-        if (canUseDatabaseScopes()) {
-            tasks = getCurrentDatabaseTasks();
+        const selectedDb = (currentUser?.role === 'admin' ? filterDatabase?.value : filterDbEmployee?.value) || '';
+        if (selectedDb && selectedDb !== '') {
+            const db = databases.find(d => d.id === selectedDb);
+            tasks = db ? db.tasks : [];
         } else {
             tasks = [];
             databases.forEach(db => tasks.push(...db.tasks));
@@ -2224,7 +2226,7 @@ function getFilteredTasks() {
     });
     const filterDbEmployee = document.getElementById('filterDatabaseEmployee');
     filterDatabase?.addEventListener('change', e => {
-        currentDatabaseId = e.target.value;
+        currentDatabaseId = e.target.value || databases[0]?.id || '';
         filterDbEmployee.value = currentDatabaseId;
         currentPage = 1;
         if (reportDatabase) reportDatabase.value = currentDatabaseId;
@@ -2244,10 +2246,14 @@ function getFilteredTasks() {
     resetFiltersBtn.addEventListener('click', () => {
         filterDepartment.value = filterPriority.value = filterStatus.value = filterDate.value = searchTask.value = '';
         if (sortTasks) sortTasks.value = 'createdAt_desc';
+        filterDatabase.value = '';
+        filterDbEmployee.value = '';
+        currentDatabaseId = databases[0]?.id || '';
         currentPage = 1;
         activeQuickFilter = '';
         quickFilterButtons.forEach(b => b.classList.remove('active'));
         renderTasks();
+        populateDepartmentSelects();
     });
 setTodayFilterBtn.addEventListener('click', () => {
         filterDate.value = getTodayYmd(); currentPage = 1; renderTasks();
