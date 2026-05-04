@@ -519,6 +519,117 @@ async function addUser(userData) {
     let departmentsData = [];
     let activityData = [];
 
+    // ==================== Уведомления (per-user, localStorage) ====================
+    const NOTIFICATIONS_STORAGE_PREFIX = 'taskPlannerNotifications_v2_';
+    const MAX_STORED_NOTIFICATIONS = 200;
+
+    function notificationsStorageKey(username) {
+        return NOTIFICATIONS_STORAGE_PREFIX + (username || '');
+    }
+
+    function readNotificationsForUser(username) {
+        if (!username) return [];
+        try {
+            const raw = localStorage.getItem(notificationsStorageKey(username));
+            if (!raw) return [];
+            const arr = JSON.parse(raw);
+            return Array.isArray(arr) ? arr : [];
+        } catch {
+            return [];
+        }
+    }
+
+    function writeNotificationsForUser(username, list) {
+        if (!username) return;
+        const trimmed = list.slice(0, MAX_STORED_NOTIFICATIONS);
+        try {
+            localStorage.setItem(notificationsStorageKey(username), JSON.stringify(trimmed));
+        } catch (e) {
+            console.warn('[notifications] save failed', e);
+        }
+    }
+
+    function appendNotificationForUsername(username, message, taskId) {
+        if (!username || !message) return;
+        const list = readNotificationsForUser(username);
+        list.unshift({ id: Date.now() + Math.random(), message, taskId, read: false });
+        writeNotificationsForUser(username, list);
+        if (currentUser && currentUser.username === username) {
+            notifications = list;
+            updateNotificationBadge();
+        }
+    }
+
+    function notifyAllAdmins(message, taskId) {
+        if (!users.length) return;
+        for (const u of users) {
+            if (u.role === 'admin') {
+                appendNotificationForUsername(u.username, message, taskId);
+            }
+        }
+    }
+
+    /** Сопоставление ФИО из задачи с учётной записью (в т.ч. формат «Фамилия, Имя»). */
+    function resolveUsernameByFullName(fullName) {
+        if (!fullName || !users.length) return null;
+        const target = String(fullName).trim();
+        for (const u of users) {
+            if (!u.fullName) continue;
+            if (u.fullName === target) return u.username;
+            const parts = u.fullName.split(',').map(s => s.trim()).filter(Boolean);
+            if (parts.includes(target)) return u.username;
+        }
+        return null;
+    }
+
+    function notifyTaskCreated(newTask) {
+        const taskId = newTask.id;
+        const title = newTask.title || '';
+        notifyAllAdmins(`Новая заявка #${taskId} от ${newTask.author}: ${title}`, taskId);
+        const un = resolveUsernameByFullName(newTask.author);
+        const authorUser = un ? findUserByUsername(un) : null;
+        if (authorUser && authorUser.role === 'employee') {
+            appendNotificationForUsername(un, `Ваша заявка #${taskId} создана: ${title}`, taskId);
+        }
+    }
+
+    function notifyTaskTerminalStatus(task, prevStatus) {
+        if (prevStatus === task.status) return;
+        if (task.status !== 'Завершена' && task.status !== 'Отклонена') return;
+        const title = task.title || '';
+        const id = task.id;
+        if (task.status === 'Завершена') {
+            notifyAllAdmins(`Заявка #${id} завершена (${task.author}): ${title}`, id);
+            const un = resolveUsernameByFullName(task.author);
+            const authorUser = un ? findUserByUsername(un) : null;
+            if (authorUser && authorUser.role === 'employee') {
+                appendNotificationForUsername(un, `Ваша заявка #${id} выполнена: ${title}`, id);
+            }
+        } else {
+            notifyAllAdmins(`Заявка #${id} отклонена (${task.author}): ${title}`, id);
+            const un = resolveUsernameByFullName(task.author);
+            const authorUser = un ? findUserByUsername(un) : null;
+            if (authorUser && authorUser.role === 'employee') {
+                appendNotificationForUsername(un, `Ваша заявка #${id} отклонена: ${title}`, id);
+            }
+        }
+    }
+
+    function loadUserNotifications() {
+        if (!currentUser) {
+            notifications = [];
+            updateNotificationBadge();
+            return;
+        }
+        notifications = readNotificationsForUser(currentUser.username);
+        updateNotificationBadge();
+    }
+
+    function persistCurrentUserNotifications() {
+        if (!currentUser) return;
+        writeNotificationsForUser(currentUser.username, notifications);
+    }
+
     // ==================== DOM ====================
     const loginScreen = document.getElementById('loginScreen');
     const app = document.getElementById('app');
@@ -822,6 +933,8 @@ async function addUser(userData) {
             clearInterval(healthPingTimer);
             healthPingTimer = null;
         }
+        notifications = [];
+        if (notificationCount) notificationCount.textContent = '0';
         currentUser = null;
         localStorage.removeItem(ACTIVE_SESSION_KEY);
         app.style.display = 'none';
@@ -1243,6 +1356,7 @@ return '';  // OK
 
     async function initApp() {
         purgeLocalPlannerData();
+        loadUserNotifications();
         resetTaskFiltersForSession();
         await initDirections();
         await initActivity();
@@ -1907,10 +2021,7 @@ function getFilteredTasks() {
         task.updatedAt = new Date().toISOString().split('T')[0];
         if (prevStatus !== task.status) {
             addHistoryEntry(task, `Статус: ${prevStatus} -> ${task.status}`);
-            // Уведомление при завершении задачи - только для автора
-            if (task.status === 'Завершена' && currentUser?.fullName === task.author) {
-                addNotification(`Ваша задача #${task.id} завершена: ${task.title}`);
-            }
+            notifyTaskTerminalStatus(task, prevStatus);
         }
         if (prevAssignee !== task.assignee) addHistoryEntry(task, `Исполнитель: ${prevAssignee || 'Не назначен'} -> ${task.assignee || 'Не назначен'}`);
         refreshTaskRelatedUi();
@@ -2023,7 +2134,7 @@ function getFilteredTasks() {
             Object.assign(newTask, createdTask);
             taskRowMap.set(newTask.id, createdTask.row_id);
             nextTaskId = Math.max(nextTaskId, Number(newTask.id) + 1);
-            addNotification(`Новая задача #${newTask.id} от ${newTask.author}`, newTask.id);
+            notifyTaskCreated(newTask);
             refreshTaskRelatedUi();
             quickTaskForm.reset();
             quickTaskForm.querySelector('input[name="database"]').value = currentDatabaseId;
@@ -2139,18 +2250,18 @@ setTodayFilterBtn.addEventListener('click', () => {
         });
     }
 
-    // ==================== УВЕДОМЛЕНИЯ ====================
-    function addNotification(msg, taskId) {
-        notifications.unshift({ id: Date.now(), message: msg, taskId, read: false });
-        updateNotificationBadge();
+    // ==================== УВЕДОМЛЕНИЯ (UI) ====================
+    function updateNotificationBadge() {
+        if (!notificationCount) return;
+        notificationCount.textContent = notifications.filter(n => !n.read).length;
     }
-    function updateNotificationBadge() { notificationCount.textContent = notifications.filter(n => !n.read).length; }
     notificationBadge.addEventListener('click', () => {
         notificationsList.innerHTML =
             notifications
                 .map(n => `<div class="notification-item ${n.read ? '' : 'unread'}"><div>${escapeHtml(n.message)}</div></div>`)
                 .join('') || '<p>Нет уведомлений</p>';
-        notifications.forEach(n => n.read = true);
+        notifications.forEach(n => { n.read = true; });
+        persistCurrentUserNotifications();
         updateNotificationBadge();
         notificationsModal.classList.add('show');
     });
