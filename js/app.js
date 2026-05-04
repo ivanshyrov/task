@@ -560,13 +560,9 @@ async function addUser(userData) {
         }
     }
 
-    function notifyAllAdmins(message, taskId) {
-        if (!users.length) return;
-        for (const u of users) {
-            if (u.role === 'admin') {
-                appendNotificationForUsername(u.username, message, taskId);
-            }
-        }
+    function notifyCurrentAdmin(message, taskId) {
+        if (!currentUser || currentUser.role !== 'admin') return;
+        appendNotificationForUsername(currentUser.username, message, taskId);
     }
 
     /** Сопоставление ФИО из задачи с учётной записью (в т.ч. формат «Фамилия, Имя»). */
@@ -585,7 +581,7 @@ async function addUser(userData) {
     function notifyTaskCreated(newTask) {
         const taskId = newTask.id;
         const title = newTask.title || '';
-        notifyAllAdmins(`Новая заявка #${taskId} от ${newTask.author}: ${title}`, taskId);
+        notifyCurrentAdmin(`Новая заявка #${taskId} от ${newTask.author}: ${title}`, taskId);
         const un = resolveUsernameByFullName(newTask.author);
         const authorUser = un ? findUserByUsername(un) : null;
         if (authorUser && authorUser.role === 'employee') {
@@ -599,14 +595,14 @@ async function addUser(userData) {
         const title = task.title || '';
         const id = task.id;
         if (task.status === 'Завершена') {
-            notifyAllAdmins(`Заявка #${id} завершена (${task.author}): ${title}`, id);
+            notifyCurrentAdmin(`Заявка #${id} завершена (${task.author}): ${title}`, id);
             const un = resolveUsernameByFullName(task.author);
             const authorUser = un ? findUserByUsername(un) : null;
             if (authorUser && authorUser.role === 'employee') {
                 appendNotificationForUsername(un, `Ваша заявка #${id} выполнена: ${title}`, id);
             }
         } else {
-            notifyAllAdmins(`Заявка #${id} отклонена (${task.author}): ${title}`, id);
+            notifyCurrentAdmin(`Заявка #${id} отклонена (${task.author}): ${title}`, id);
             const un = resolveUsernameByFullName(task.author);
             const authorUser = un ? findUserByUsername(un) : null;
             if (authorUser && authorUser.role === 'employee') {
