@@ -1415,20 +1415,44 @@ return '';  // OK
 
     // ==================== SELECT'Ы ====================
     function populateDatabaseSelects() {
-        [filterDatabase, reportDatabase].forEach(select => {
-            if (!select) return;
-            select.innerHTML = '';
+        const filterDbAdmin = document.getElementById('filterDatabase');
+        const filterDbEmployee = document.getElementById('filterDatabaseEmployee');
+        const reportDb = document.getElementById('reportDatabase');
+        
+        if (filterDbAdmin) {
+            filterDbAdmin.style.display = currentUser?.role === 'admin' ? 'block' : 'none';
+            filterDbAdmin.innerHTML = '';
             databases.forEach(db => {
                 const opt = document.createElement('option');
                 opt.value = db.id;
                 opt.textContent = db.name;
-                select.appendChild(opt);
+                filterDbAdmin.appendChild(opt);
             });
-        });
-        if (filterDatabase) filterDatabase.value = currentDatabaseId;
-        if (reportDatabase) reportDatabase.value = currentDatabaseId;
-        const quickTaskDatabaseInput = quickTaskForm?.querySelector('input[name="database"]');
-        if (quickTaskDatabaseInput) quickTaskDatabaseInput.value = currentDatabaseId;
+            filterDbAdmin.value = currentDatabaseId;
+        }
+        
+        if (filterDbEmployee) {
+            filterDbEmployee.style.display = currentUser?.role !== 'admin' ? 'block' : 'none';
+            filterDbEmployee.innerHTML = '<option value="">Все базы</option>';
+            databases.forEach(db => {
+                const opt = document.createElement('option');
+                opt.value = db.id;
+                opt.textContent = db.name;
+                filterDbEmployee.appendChild(opt);
+            });
+            filterDbEmployee.value = currentDatabaseId;
+        }
+        
+        if (reportDb) {
+            reportDb.innerHTML = '';
+            databases.forEach(db => {
+                const opt = document.createElement('option');
+                opt.value = db.id;
+                opt.textContent = db.name;
+                reportDb.appendChild(opt);
+            });
+            reportDb.value = currentDatabaseId;
+        }
     }
 
     function populateDepartmentSelects() {
@@ -2198,8 +2222,19 @@ function getFilteredTasks() {
         el?.addEventListener('input', () => { currentPage = 1; renderTasks(); });
         el?.addEventListener('change', () => { currentPage = 1; renderTasks(); });
     });
+    const filterDbEmployee = document.getElementById('filterDatabaseEmployee');
     filterDatabase?.addEventListener('change', e => {
         currentDatabaseId = e.target.value;
+        filterDbEmployee.value = currentDatabaseId;
+        currentPage = 1;
+        if (reportDatabase) reportDatabase.value = currentDatabaseId;
+        renderTasks();
+        populateDepartmentSelects();
+        savePersistedData();
+    });
+    filterDbEmployee?.addEventListener('change', e => {
+        currentDatabaseId = e.target.value || databases[0]?.id || '';
+        filterDatabase.value = currentDatabaseId;
         currentPage = 1;
         if (reportDatabase) reportDatabase.value = currentDatabaseId;
         renderTasks();
@@ -3022,7 +3057,6 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
             const authorSelect = document.getElementById('quickTaskAuthor');
             
             if (isAdmin) {
-                // Показать выбор автора для админа - только админы
                 const adminUsers = users.filter(u => u.role === 'admin').map(u => u.fullName).filter(Boolean).sort();
                 authorSelect.innerHTML = '<option value="">Выберите автора</option>' + 
                     adminUsers.map(name => `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join('');
@@ -3035,12 +3069,18 @@ document.getElementById('addUserBtn')?.addEventListener('click', () => {
             quickTaskForm.querySelector('input[name="department"]').value = '';
             quickTaskForm.querySelector('textarea[name="description"]').value = '';
             quickTaskForm.querySelector('select[name="priority"]').value = 'Низкий';
-            quickTaskForm.querySelector('input[name="deadline"]').value = getDateWithOffset(3);
+            quickTaskForm.querySelector('input[name="deadline"]').value = getDateWithOffset(SLA_DAYS_BY_PRIORITY['Низкий'] || 3);
             quickTaskForm.querySelector('input[name="office"]').value = userProfile.office || '';
             quickTaskForm.querySelector('input[name="phone"]').value = userProfile.phone || '';
             if (quickTaskAttachmentInput) quickTaskAttachmentInput.value = '';
             quickTaskForm.dataset.submitting = 'false';
             quickTaskModal.classList.add('show');
+        });
+        
+        quickTaskForm.querySelector('select[name="priority"]')?.addEventListener('change', e => {
+            const priority = e.target.value;
+            const slaDays = SLA_DAYS_BY_PRIORITY[priority] || 3;
+            quickTaskForm.querySelector('input[name="deadline"]').value = getDateWithOffset(slaDays);
         });
         document.querySelectorAll('.close-modal, .close-modal-btn').forEach(b =>
             b.addEventListener('click', e => e.target.closest('.modal').classList.remove('show'))
