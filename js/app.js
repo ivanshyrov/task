@@ -521,7 +521,7 @@ async function addUser(userData) {
 
     // ==================== Уведомления (per-user, localStorage) ====================
     const NOTIFICATIONS_STORAGE_PREFIX = 'taskPlannerNotifications_v2_';
-    const MAX_STORED_NOTIFICATIONS = 200;
+    const MAX_STORED_NOTIFICATIONS = 20;
 
     function notificationsStorageKey(username) {
         return NOTIFICATIONS_STORAGE_PREFIX + (username || '');
@@ -561,8 +561,15 @@ async function addUser(userData) {
     }
 
     function notifyCurrentAdmin(message, taskId) {
-        if (!currentUser || currentUser.role !== 'admin') return;
-        appendNotificationForUsername(currentUser.username, message, taskId);
+        if (!currentUser) return;
+        if (currentUser.role === 'admin') {
+            appendNotificationForUsername(currentUser.username, message, taskId);
+        } else {
+            const admin = users.find(u => u.role === 'admin');
+            if (admin) {
+                appendNotificationForUsername(admin.username, message, taskId);
+            }
+        }
     }
 
     /** Сопоставление ФИО из задачи с учётной записью (в т.ч. формат «Фамилия, Имя»). */
